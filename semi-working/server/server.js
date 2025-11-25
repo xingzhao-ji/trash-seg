@@ -39,7 +39,7 @@ if (!MONGODB_URI) {
 async function initializeDatabase() {
   try {
     console.log('Initializing database...');
-    
+
     // Only create a default station if none exists
     const stationCount = await Station.estimatedDocumentCount();
     if (stationCount === 0) {
@@ -65,10 +65,10 @@ async function updateBinStatistics() {
     const now = new Date();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    
+
     const yesterdayStart = new Date(todayStart);
     yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-    
+
     const yesterdayEnd = new Date(todayStart);
     yesterdayEnd.setSeconds(-1);
 
@@ -76,12 +76,12 @@ async function updateBinStatistics() {
     const scansToday = await FullnessReport.countDocuments({
       createdAt: { $gte: todayStart }
     });
-    
+
     // Calculate scans yesterday for comparison
     const scansYesterday = await FullnessReport.countDocuments({
       createdAt: { $gte: yesterdayStart, $lt: todayStart }
     });
-    
+
     // Calculate percentage change
     let scansDelta = 'No change';
     if (scansYesterday > 0) {
@@ -97,22 +97,22 @@ async function updateBinStatistics() {
     });
 
     // Calculate average contamination
-    const binsWithContamination = await Bin.find({ 
-      contamination: { $exists: true, $gt: 0 } 
+    const binsWithContamination = await Bin.find({
+      contamination: { $exists: true, $gt: 0 }
     });
-    
+
     const problemBinsData = await ProblemBin.find();
-    
+
     let avgContamination = 0;
     let contaminationDelta = 'No contamination data';
-    
+
     if (binsWithContamination.length > 0 || problemBinsData.length > 0) {
       // Combine contamination data from both collections
       const allContaminations = [
         ...binsWithContamination.map(b => b.contamination),
         ...problemBinsData.map(b => b.contamination)
       ].filter(c => c > 0);
-      
+
       if (allContaminations.length > 0) {
         avgContamination = (allContaminations.reduce((sum, c) => sum + c, 0) / allContaminations.length).toFixed(1);
         contaminationDelta = 'Based on reported bins';
@@ -128,7 +128,7 @@ async function updateBinStatistics() {
     // Update or create overview stats
     await OverviewStat.findOneAndUpdate(
       { statId: 'scansToday' },
-      { 
+      {
         label: 'Scans Today',
         value: scansToday,
         delta: scansDelta
@@ -138,7 +138,7 @@ async function updateBinStatistics() {
 
     await OverviewStat.findOneAndUpdate(
       { statId: 'avgContamination' },
-      { 
+      {
         label: 'Avg Contamination',
         value: parseFloat(avgContamination),
         delta: contaminationDelta
@@ -148,7 +148,7 @@ async function updateBinStatistics() {
 
     await OverviewStat.findOneAndUpdate(
       { statId: 'binsOver80' },
-      { 
+      {
         label: 'Bins > 80% Full',
         value: fullBins,
         delta: fullBins > 0 ? 'Require attention' : 'All good'
@@ -158,7 +158,7 @@ async function updateBinStatistics() {
 
     await OverviewStat.findOneAndUpdate(
       { statId: 'overflowReports' },
-      { 
+      {
         label: 'Overflow Reports',
         value: overflowReports,
         delta: 'Today'
@@ -176,7 +176,7 @@ async function updateBinStatistics() {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
@@ -213,9 +213,9 @@ app.get('/api/admin/overview', async (req, res) => {
   try {
     // Always calculate fresh statistics
     await updateBinStatistics();
-    
+
     const stats = await OverviewStat.find().sort({ statId: 1 }).lean();
-    
+
     // If no stats exist yet, create default ones
     if (stats.length === 0) {
       const defaultStats = [
@@ -224,15 +224,15 @@ app.get('/api/admin/overview', async (req, res) => {
         { statId: 'binsOver80', label: 'Bins > 80% Full', value: 0, delta: 'All good' },
         { statId: 'overflowReports', label: 'Overflow Reports', value: 0, delta: 'Today' }
       ];
-      
+
       for (const stat of defaultStats) {
         await OverviewStat.create(stat);
       }
-      
+
       const newStats = await OverviewStat.find().sort({ statId: 1 }).lean();
       return res.json(newStats);
     }
-    
+
     res.json(stats);
   } catch (err) {
     console.error('Error in /api/admin/overview:', err);
@@ -245,7 +245,7 @@ app.get('/api/admin/problem-bins', async (req, res) => {
   try {
     // First, check for bins with high contamination in ProblemBin collection
     let problemBins = await ProblemBin.find().sort({ contamination: -1 }).lean();
-    
+
     // Also check regular bins for high fullness or issues
     const criticalBins = await Bin.find({
       $or: [
@@ -254,15 +254,15 @@ app.get('/api/admin/problem-bins', async (req, res) => {
         { contamination: { $gte: 5 } }
       ]
     }).lean();
-    
+
     // Merge and deduplicate problem bins
     const binMap = new Map();
-    
+
     // Add existing problem bins
     problemBins.forEach(bin => {
       binMap.set(bin.name, bin);
     });
-    
+
     // Add or update with critical bins
     criticalBins.forEach(bin => {
       if (!binMap.has(bin.name)) {
@@ -279,11 +279,11 @@ app.get('/api/admin/problem-bins', async (req, res) => {
         });
       }
     });
-    
+
     // Convert map back to array and sort by contamination/criticality
     const allProblemBins = Array.from(binMap.values())
       .sort((a, b) => b.contamination - a.contamination);
-    
+
     res.json(allProblemBins);
   } catch (err) {
     console.error('Error in /api/admin/problem-bins:', err);
@@ -295,7 +295,7 @@ app.get('/api/admin/problem-bins', async (req, res) => {
 app.get('/api/student/impact', async (req, res) => {
   try {
     let impact = await StudentImpact.findOne({ userId: 'demoStudent' }).lean();
-    
+
     // If no impact found, return zeros
     if (!impact) {
       impact = {
@@ -305,7 +305,7 @@ app.get('/api/student/impact', async (req, res) => {
         landfill: 0
       };
     }
-    
+
     res.json(impact);
   } catch (err) {
     console.error('Error in /api/student/impact:', err);
@@ -317,41 +317,41 @@ app.get('/api/student/impact', async (req, res) => {
 app.post('/api/student/impact', async (req, res) => {
   try {
     const { items } = req.body;
-    
+
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ message: 'Items array is required' });
     }
-    
+
     // Count items by stream
     const counts = {
       compost: 0,
       recycle: 0,
       landfill: 0
     };
-    
+
     items.forEach(item => {
       if (counts.hasOwnProperty(item.stream)) {
         counts[item.stream]++;
       }
     });
-    
+
     // Update the student impact
     const impact = await StudentImpact.findOneAndUpdate(
       { userId: 'demoStudent' },
-      { 
+      {
         $inc: {
           compost: counts.compost,
           recycle: counts.recycle,
           landfill: counts.landfill
         }
       },
-      { 
-        new: true, 
+      {
+        new: true,
         upsert: true,
         setDefaultsOnInsert: true
       }
     ).lean();
-    
+
     res.json(impact);
   } catch (err) {
     console.error('Error in POST /api/student/impact:', err);
@@ -375,7 +375,7 @@ app.post('/api/segment', (req, res) => {
       { label: 'Eggshells', stream: 'compost' },
       { label: 'Paper towel', stream: 'compost' },
       { label: 'Pizza crust', stream: 'compost' },
-      
+
       // Recycle items
       { label: 'Aluminum can', stream: 'recycle' },
       { label: 'Plastic water bottle', stream: 'recycle' },
@@ -387,7 +387,7 @@ app.post('/api/segment', (req, res) => {
       { label: 'Milk carton', stream: 'recycle' },
       { label: 'Soda can', stream: 'recycle' },
       { label: 'Magazine', stream: 'recycle' },
-      
+
       // Landfill items
       { label: 'Chip bag', stream: 'landfill' },
       { label: 'Plastic wrapper', stream: 'landfill' },
@@ -400,24 +400,24 @@ app.post('/api/segment', (req, res) => {
       { label: 'Paper cup (lined)', stream: 'landfill' },
       { label: 'Broken pen', stream: 'landfill' }
     ];
-    
+
     // Generate random number of items (3-7)
     const numItems = Math.floor(Math.random() * 5) + 3;
-    
+
     // Randomly select items without duplicates
     const shuffled = [...itemPool].sort(() => 0.5 - Math.random());
     const selectedItems = shuffled.slice(0, numItems);
-    
+
     // Add unique IDs to each item
     const items = selectedItems.map((item, index) => ({
       id: `${Date.now()}-${index}`,
       label: item.label,
       stream: item.stream
     }));
-    
+
     // Log the segmentation request for statistics
     console.log(`Segmentation requested: ${items.length} items detected`);
-    
+
     // Simulate processing delay
     setTimeout(() => {
       res.json(items);
@@ -432,24 +432,24 @@ app.post('/api/segment', (req, res) => {
 app.post('/api/bins/report-fullness', async (req, res) => {
   try {
     const { stationId, level, binId } = req.body;
-    
+
     if (!level) {
       return res.status(400).json({ message: 'Level is required' });
     }
-    
+
     // Validate level
     const validLevels = ['Empty', '1/4 Full', 'Half Full', '3/4 Full', 'Full', 'Overflowing'];
     if (!validLevels.includes(level)) {
       return res.status(400).json({ message: 'Invalid level' });
     }
-    
+
     // Create fullness report
     const report = await FullnessReport.create({
       station: stationId || undefined,
       level,
       createdAt: new Date()
     });
-    
+
     // Update bin fullness if binId provided
     if (binId) {
       const fullnessMap = {
@@ -460,7 +460,7 @@ app.post('/api/bins/report-fullness', async (req, res) => {
         'Full': 90,
         'Overflowing': 100
       };
-      
+
       const levelMap = {
         'Empty': 'Good',
         '1/4 Full': 'Good',
@@ -469,19 +469,19 @@ app.post('/api/bins/report-fullness', async (req, res) => {
         'Full': 'Critical',
         'Overflowing': 'Critical'
       };
-      
+
       await Bin.findByIdAndUpdate(binId, {
         fullness: fullnessMap[level],
         level: levelMap[level],
         lastReported: new Date()
       });
     }
-    
+
     // Update statistics
     await updateBinStatistics();
-    
-    res.json({ 
-      ok: true, 
+
+    res.json({
+      ok: true,
       id: report._id.toString(),
       message: 'Fullness report submitted successfully'
     });
@@ -495,14 +495,14 @@ app.post('/api/bins/report-fullness', async (req, res) => {
 app.post('/api/facilities/update-bins', async (req, res) => {
   try {
     const { bins } = req.body;
-    
+
     if (!bins || !Array.isArray(bins)) {
       return res.status(400).json({ message: 'Bins array is required' });
     }
-    
+
     // Process facility data using integration service
     const result = await FacilitiesIntegration.processFacilityData(bins);
-    
+
     res.json({
       ok: true,
       created: result.created,
@@ -522,13 +522,13 @@ app.post('/api/facilities/update-bins', async (req, res) => {
 app.post('/api/facilities/sync-contamination', async (req, res) => {
   try {
     const { contaminationData } = req.body;
-    
+
     if (!contaminationData || !Array.isArray(contaminationData)) {
       return res.status(400).json({ message: 'Contamination data array is required' });
     }
-    
+
     await FacilitiesIntegration.syncContaminationData(contaminationData);
-    
+
     res.json({
       ok: true,
       message: `Processed ${contaminationData.length} contamination reports`
@@ -543,12 +543,12 @@ app.post('/api/facilities/sync-contamination', async (req, res) => {
 app.get('/api/facilities/report', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
-    
+
     const report = await FacilitiesIntegration.generateFacilityReport(start, end);
-    
+
     res.json(report);
   } catch (err) {
     console.error('Error generating report:', err);
@@ -560,46 +560,46 @@ app.get('/api/facilities/report', async (req, res) => {
 app.get('/api/bins/:id/stats', async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const bin = await Bin.findById(id);
     if (!bin) {
       return res.status(404).json({ message: 'Bin not found' });
     }
-    
+
     // Calculate real-time statistics
     const now = new Date();
     const todayStart = new Date(now.setHours(0, 0, 0, 0));
     const weekAgo = new Date(now.setDate(now.getDate() - 7));
     const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-    
+
     // Get reports for this specific bin
     const todayReports = await FullnessReport.countDocuments({
       station: bin._id,
       createdAt: { $gte: todayStart }
     });
-    
+
     const weekReports = await FullnessReport.find({
       station: bin._id,
       createdAt: { $gte: weekAgo }
     });
-    
+
     const overflowReports = await FullnessReport.countDocuments({
       station: bin._id,
       level: 'Overflowing',
       createdAt: { $gte: monthAgo }
     });
-    
+
     // Calculate average fullness
     const avgFullness = weekReports.length > 0
       ? weekReports.reduce((sum, report) => {
-          const fullnessMap = {
-            'Empty': 0, '1/4 Full': 25, 'Half Full': 50,
-            '3/4 Full': 75, 'Full': 90, 'Overflowing': 100
-          };
-          return sum + (fullnessMap[report.level] || 0);
-        }, 0) / weekReports.length
+        const fullnessMap = {
+          'Empty': 0, '1/4 Full': 25, 'Half Full': 50,
+          '3/4 Full': 75, 'Full': 90, 'Overflowing': 100
+        };
+        return sum + (fullnessMap[report.level] || 0);
+      }, 0) / weekReports.length
       : 0;
-    
+
     res.json({
       binId: bin._id,
       name: bin.name,
@@ -614,6 +614,73 @@ app.get('/api/bins/:id/stats', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+// Create a new bin
+app.post('/api/bin', async (req, res) => {
+  try {
+    const {
+      name,
+      facilityId,
+      qrCode,
+      location,
+      building,
+      floor,
+      streams,
+      description
+    } = req.body;
+
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ message: 'Bin name is required' });
+    }
+
+    // Optional: Check for duplicates
+    const duplicateQuery = [];
+    if (facilityId) duplicateQuery.push({ facilityId });
+    if (qrCode) duplicateQuery.push({ qrCode });
+
+    if (duplicateQuery.length > 0) {
+      const existing = await Bin.findOne({ $or: duplicateQuery }).lean();
+      if (existing) {
+        return res.status(409).json({
+          message: 'A bin with this facilityId or qrCode already exists.',
+          binId: existing._id
+        });
+      }
+    }
+
+    // Create the bin
+    const bin = await Bin.create({
+      name,
+      facilityId: facilityId || null,
+      qrCode: qrCode || null,
+      location: location || '',
+      building: building || '',
+      floor: floor || '',
+      streams: streams || [],
+      description: description || ''
+    });
+
+    res.status(201).json({
+      ok: true,
+      message: 'Bin created successfully',
+      bin
+    });
+
+  } catch (err) {
+    console.error('Error creating bin:', err);
+
+    if (err.code === 11000) {
+      return res.status(409).json({
+        message: 'facilityId or qrCode must be unique',
+        keyValue: err.keyValue
+      });
+    }
+
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 
 // 404 handler for undefined routes
 app.use('/api/*', (req, res) => {
@@ -634,16 +701,16 @@ mongoose
   })
   .then(async () => {
     console.log('✓ Connected to MongoDB');
-    
+
     // Initialize database with minimal setup
     await initializeDatabase();
-    
+
     // Update statistics on startup
     await updateBinStatistics();
-    
+
     // Update statistics every 5 minutes
     setInterval(updateBinStatistics, 5 * 60 * 1000);
-    
+
     // Start the server
     app.listen(PORT, () => {
       console.log(`✓ Server listening on port ${PORT}`);

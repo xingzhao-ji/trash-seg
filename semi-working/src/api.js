@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
   (window.location.hostname === 'localhost' ? 'http://localhost:5001' : '');
 
 async function handleResponse(response) {
@@ -29,7 +29,7 @@ async function handleResponse(response) {
 async function fetchWithTimeout(url, options = {}, timeout = 10000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -82,6 +82,7 @@ export async function runSegmentationOnImage(_file) {
   return handleResponse(res);
 }
 
+// Bin
 export async function reportBinFullness(stationId, level) {
   const res = await fetchWithTimeout(`${API_BASE_URL}/api/bins/report-fullness`, {
     method: 'POST',
@@ -92,6 +93,18 @@ export async function reportBinFullness(stationId, level) {
   });
   return handleResponse(res);
 }
+
+export async function createBin(binData) {
+  const res = await fetchWithTimeout(`${API_BASE_URL}/api/bin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(binData)
+  });
+  return handleResponse(res);
+}
+
 
 export async function updateStudentImpact(items) {
   const res = await fetchWithTimeout(`${API_BASE_URL}/api/student/impact`, {
@@ -124,7 +137,8 @@ const api = {
   runSegmentationOnImage,
   reportBinFullness,
   updateStudentImpact,
-  testConnection
+  testConnection,
+  createBin
 };
 
 export default api;

@@ -6,7 +6,7 @@ function App() {
   const [view, setView] = useState('student'); // 'student' or 'admin'
   const [currentScreen, setCurrentScreen] = useState('studentHome');
   const [adminTab, setAdminTab] = useState('overview');
-  
+
   // Data states
   const [station, setStation] = useState(null);
   const [nearbyBins, setNearbyBins] = useState([]);
@@ -14,7 +14,7 @@ function App() {
   const [problemBins, setProblemBins] = useState([]);
   const [studentImpact, setStudentImpact] = useState({ compost: 0, recycle: 0, landfill: 0 });
   const [selectedBin, setSelectedBin] = useState(null);
-  
+
   // UI states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,6 +25,20 @@ function App() {
   const [hideFullBins, setHideFullBins] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Bin creation
+  const [newBinData, setNewBinData] = useState({
+    name: '',
+    facilityId: '',
+    qrCode: '',
+    location: '',
+    building: '',
+    floor: '',
+    streams: [],
+    description: ''
+  });
+  const [newBinError, setNewBinError] = useState('');
+  const [newBinLoading, setNewBinLoading] = useState(false);
+
   // Load initial data
   useEffect(() => {
     loadData();
@@ -33,19 +47,19 @@ function App() {
   async function loadData() {
     setLoading(true);
     setError(null);
-    
+
     try {
       // Test API connection first
       console.log('Testing API connection...');
       const health = await api.testConnection();
       console.log('API health check:', health);
-      
+
       if (health.status === 'error') {
         throw new Error(`Cannot connect to server at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}. Make sure the backend is running.`);
       }
-      
+
       console.log('Loading data from API...');
-      
+
       // Load all data in parallel with individual error handling
       const [stationData, binsData, statsData, problemData, impactData] = await Promise.allSettled([
         api.fetchCurrentStation(),
@@ -54,55 +68,55 @@ function App() {
         api.fetchProblemBins(),
         api.fetchStudentImpact()
       ]);
-      
+
       // Process results
       if (stationData.status === 'fulfilled') {
         setStation(stationData.value);
       } else {
         console.error('Failed to load station:', stationData.reason);
         // Set a default station so the app still works
-        setStation({ 
-          name: 'Default Station', 
+        setStation({
+          name: 'Default Station',
           description: 'Station data unavailable',
           qrCode: 'N/A'
         });
       }
-      
+
       if (binsData.status === 'fulfilled') {
         setNearbyBins(binsData.value);
       } else {
         console.error('Failed to load bins:', binsData.reason);
         setNearbyBins([]);
       }
-      
+
       if (statsData.status === 'fulfilled') {
         setOverviewStats(statsData.value);
       } else {
         console.error('Failed to load stats:', statsData.reason);
         setOverviewStats([]);
       }
-      
+
       if (problemData.status === 'fulfilled') {
         setProblemBins(problemData.value);
       } else {
         console.error('Failed to load problem bins:', problemData.reason);
         setProblemBins([]);
       }
-      
+
       if (impactData.status === 'fulfilled') {
         setStudentImpact(impactData.value);
       } else {
         console.error('Failed to load impact:', impactData.reason);
         setStudentImpact({ compost: 0, recycle: 0, landfill: 0 });
       }
-      
+
       // If we got at least some data, clear the error
       if (stationData.status === 'fulfilled' || binsData.status === 'fulfilled') {
         setError(null);
       } else {
         setError('Failed to load data. Please check your connection and try again.');
       }
-      
+
     } catch (err) {
       console.error('Error loading data:', err);
       setError(err.message || 'Failed to connect to server. Please ensure the backend is running on port 5000.');
@@ -157,7 +171,7 @@ function App() {
 
   async function handleSubmitFullness() {
     if (!selectedFullness || !station) return;
-    
+
     try {
       await api.reportBinFullness(station._id, selectedFullness);
       setSuccessMessage('Thanks for reporting bin status!');
@@ -167,6 +181,58 @@ function App() {
       setError('Failed to report bin fullness.');
     }
   }
+
+  // Add bin
+  function toggleStream(stream) {
+    setNewBinData(prev => {
+      const hasStream = prev.streams.includes(stream);
+      return {
+        ...prev,
+        streams: hasStream
+          ? prev.streams.filter(s => s !== stream)
+          : [...prev.streams, stream]
+      };
+    });
+  }
+
+  async function handleCreateBinSubmit(e) {
+    e.preventDefault();
+    setNewBinError('');
+    setNewBinLoading(true);
+
+    if (!newBinData.name.trim()) {
+      setNewBinError('Name is required.');
+      setNewBinLoading(false);
+      return;
+    }
+
+    try {
+      await api.createBin(newBinData);
+      setSuccessMessage('Bin created successfully!');
+      // reset form
+      setNewBinData({
+        name: '',
+        facilityId: '',
+        qrCode: '',
+        location: '',
+        building: '',
+        floor: '',
+        streams: [],
+        description: ''
+      });
+      // reload data so new bin shows up in lists
+      await loadData();
+      setCurrentScreen('adminDashboard');
+      setAdminTab('overview'); // or 'overview', up to you
+    } catch (err) {
+      console.error('Error creating bin:', err);
+      setNewBinError(err.message || 'Failed to create bin.');
+    } finally {
+      setNewBinLoading(false);
+    }
+  }
+
+
 
   function goToNearbyBins() {
     setCurrentScreen('nearbyBins');
@@ -227,7 +293,7 @@ function App() {
         <header className="app-header">
           <div className="app-header-left">
             {currentScreen !== 'studentHome' && currentScreen !== 'adminDashboard' && (
-              <button 
+              <button
                 className="back-button"
                 onClick={() => {
                   if (currentScreen === 'binDetail') {
@@ -246,13 +312,13 @@ function App() {
             <h1 className="app-title">Zero Waste System</h1>
           </div>
           <div className="view-toggle">
-            <button 
+            <button
               className={`toggle-pill ${view === 'student' ? 'active' : ''}`}
               onClick={() => handleViewToggle('student')}
             >
               Student View
             </button>
-            <button 
+            <button
               className={`toggle-pill ${view === 'admin' ? 'active' : ''}`}
               onClick={() => handleViewToggle('admin')}
             >
@@ -269,7 +335,7 @@ function App() {
               {successMessage && (
                 <div className="toast success-toast">{successMessage}</div>
               )}
-              
+
               <div className="card station-card">
                 <div className="station-icons">
                   <span>♻️</span>
@@ -317,7 +383,7 @@ function App() {
                   </div>
                 </div>
               </div>
-              
+
               <button className="primary-btn big-btn" onClick={handleUseExampleResults}>
                 Use example results
               </button>
@@ -420,7 +486,7 @@ function App() {
 
               <div className="fullness-grid">
                 {['Empty', '1/4 Full', 'Half Full', '3/4 Full', 'Full', 'Overflowing'].map(level => (
-                  <div 
+                  <div
                     key={level}
                     className={`fullness-card ${selectedFullness === level ? 'selected' : ''}`}
                     onClick={() => setSelectedFullness(level)}
@@ -431,8 +497,8 @@ function App() {
                 ))}
               </div>
 
-              <button 
-                className="primary-btn big-btn" 
+              <button
+                className="primary-btn big-btn"
                 onClick={handleSubmitFullness}
                 disabled={!selectedFullness}
               >
@@ -457,8 +523,8 @@ function App() {
                   ))}
                 </div>
                 <label className="checkbox-row">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={hideFullBins}
                     onChange={(e) => setHideFullBins(e.target.checked)}
                   />
@@ -484,8 +550,8 @@ function App() {
                     <div className="bin-card-main">
                       <div className="bin-fullness-visual">
                         <div className="fullness-bar">
-                          <div 
-                            className="fullness-fill" 
+                          <div
+                            className="fullness-fill"
                             style={{ width: `${bin.fullness}%` }}
                           ></div>
                         </div>
@@ -516,29 +582,39 @@ function App() {
           {currentScreen === 'adminDashboard' && (
             <div className="screen">
               <div className="admin-tabs">
-                <button 
+                <button
                   className={`tab-button ${adminTab === 'overview' ? 'active' : ''}`}
                   onClick={() => setAdminTab('overview')}
                 >
                   Overview
                 </button>
-                <button 
+                <button
                   className={`tab-button ${adminTab === 'map' ? 'active' : ''}`}
                   onClick={() => setAdminTab('map')}
                 >
                   Map
                 </button>
-                <button 
+                <button
                   className={`tab-button ${adminTab === 'graphs' ? 'active' : ''}`}
                   onClick={() => setAdminTab('graphs')}
                 >
                   Graphs/Stats
                 </button>
-                <button 
+                <button
                   className={`tab-button ${adminTab === 'problemBins' ? 'active' : ''}`}
                   onClick={() => setAdminTab('problemBins')}
                 >
                   Problem Bins
+                </button>
+                <button
+                  className={`tab-button ${adminTab === 'addBin' ? 'active' : ''}`}
+                  onClick={() => {
+                    setAdminTab('addBin');
+                    setNewBinError('');
+                    setCurrentScreen('adminAddBin');
+                  }}
+                >
+                  Add Bin
                 </button>
               </div>
 
@@ -611,7 +687,7 @@ function App() {
                           Contamination: {bin.contamination}%
                         </div>
                       </div>
-                      <button 
+                      <button
                         className="secondary-btn small-btn"
                         onClick={() => handleInvestigateBin(bin)}
                       >
@@ -624,10 +700,159 @@ function App() {
             </div>
           )}
 
+          {/* Admin Add Bin Screen */}
+          {currentScreen === 'adminAddBin' && (
+            <div className="screen">
+              <div className="screen-heading">
+                <div className="screen-title-large">
+                  🗑️ Add New Bin
+                </div>
+                <div className="screen-subtitle">
+                  Enter details for the new bin on campus
+                </div>
+              </div>
+
+              {newBinError && (
+                <div className="error-text form-error">
+                  {newBinError}
+                </div>
+              )}
+
+              <form className="card form-card" onSubmit={handleCreateBinSubmit}>
+                <div className="form-section-title">Basic info</div>
+
+                <div className="form-field">
+                  <label>Bin Name <span className="label-required">*</span></label>
+                  <input
+                    type="text"
+                    value={newBinData.name}
+                    onChange={e => setNewBinData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Royce Quad Bin 1"
+                    required
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>Facility ID</label>
+                  <input
+                    type="text"
+                    value={newBinData.facilityId}
+                    onChange={e => setNewBinData(prev => ({ ...prev, facilityId: e.target.value }))}
+                    placeholder="e.g., UCLA-ROYCE-001"
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label>QR Code</label>
+                  <input
+                    type="text"
+                    value={newBinData.qrCode}
+                    onChange={e => setNewBinData(prev => ({ ...prev, qrCode: e.target.value }))}
+                    placeholder="e.g., QR-ROYCE-001"
+                  />
+                </div>
+
+                <div className="form-section-title">Location</div>
+
+                <div className="form-field">
+                  <label>Location description</label>
+                  <input
+                    type="text"
+                    value={newBinData.location}
+                    onChange={e => setNewBinData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="e.g., Royce Quad - North Path"
+                  />
+                </div>
+
+                <div className="form-two-col">
+                  <div className="form-field">
+                    <label>Building</label>
+                    <input
+                      type="text"
+                      value={newBinData.building}
+                      onChange={e => setNewBinData(prev => ({ ...prev, building: e.target.value }))}
+                      placeholder="e.g., Royce Hall"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Floor</label>
+                    <input
+                      type="text"
+                      value={newBinData.floor}
+                      onChange={e => setNewBinData(prev => ({ ...prev, floor: e.target.value }))}
+                      placeholder="e.g., Ground"
+                    />
+                  </div>
+                </div>
+
+                <div className="form-section-title">Streams</div>
+
+                <div className="form-field">
+                  <label>Bin streams</label>
+                  <div className="chip-row">
+                    {['compost', 'recycle', 'landfill'].map(stream => (
+                      <button
+                        key={stream}
+                        type="button"
+                        className={
+                          'filter-pill stream-pill ' +
+                          (newBinData.streams.includes(stream) ? 'active' : '')
+                        }
+                        onClick={() => toggleStream(stream)}
+                      >
+                        <span className="stream-pill-icon">
+                          {stream === 'compost' && '🌱'}
+                          {stream === 'recycle' && '♻️'}
+                          {stream === 'landfill' && '🗑️'}
+                        </span>
+                        <span>
+                          {stream.charAt(0).toUpperCase() + stream.slice(1)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="field-hint">
+                    Choose which waste streams this station supports
+                  </div>
+                </div>
+
+                <div className="form-section-title">Notes</div>
+
+                <div className="form-field">
+                  <label>Description</label>
+                  <textarea
+                    value={newBinData.description}
+                    onChange={e => setNewBinData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional notes about this bin (e.g., near main stairs, high-traffic area)"
+                    rows={3}
+                  />
+                </div>
+
+                <div className="form-actions">
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => setCurrentScreen('adminDashboard')}
+                    disabled={newBinLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary-btn"
+                    disabled={newBinLoading}
+                  >
+                    {newBinLoading ? 'Creating…' : 'Create Bin'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           {/* Bin Detail Screen */}
           {currentScreen === 'binDetail' && selectedBin && (
             <div className="screen">
-              <button 
+              <button
                 className="link-row back-link"
                 onClick={() => {
                   setCurrentScreen('adminDashboard');
@@ -687,7 +912,7 @@ function App() {
             <div className="modal-card" onClick={(e) => e.stopPropagation()}>
               <div className="modal-header">
                 <div className="modal-title">Your Impact</div>
-                <button 
+                <button
                   className="icon-button"
                   onClick={() => setShowImpactModal(false)}
                 >
@@ -716,7 +941,7 @@ function App() {
                 You've diverted {studentImpact.compost + studentImpact.recycle} items from landfill
               </div>
 
-              <button 
+              <button
                 className="primary-btn big-btn"
                 onClick={() => setShowImpactModal(false)}
               >

@@ -55,7 +55,7 @@ body {
   .app-root {
     padding: 12px;
   }
-  
+
   .app-container {
     min-height: calc(100vh - 24px);
     border-radius: 20px;
@@ -325,6 +325,7 @@ body {
     transform: translateY(-10px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -989,8 +990,13 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-card {
@@ -1008,6 +1014,7 @@ body {
     transform: translateY(20px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -1100,11 +1107,11 @@ body {
   .app-container {
     margin: 0 auto;
   }
-  
+
   .app-main {
     padding: 20px;
   }
-  
+
   .primary-btn,
   .secondary-btn {
     padding: 12px 20px;
@@ -1116,15 +1123,15 @@ body {
   .primary-btn:active {
     transform: scale(0.98);
   }
-  
+
   .secondary-btn:active {
     transform: scale(0.98);
   }
-  
+
   .filter-pill:active {
     transform: scale(0.95);
   }
-  
+
   .fullness-card:active {
     transform: scale(0.98);
   }
@@ -1132,9 +1139,122 @@ body {
 
 /* Print styles */
 @media print {
+
   .view-toggle,
   .back-button,
   .modal-backdrop {
     display: none;
   }
+}
+
+/* Forms / Add Bin */
+.form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 16px 16px;
+}
+
+.form-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.label-required {
+  color: var(--critical);
+  margin-left: 2px;
+}
+
+.form-field input,
+.form-field textarea {
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  background: #f9fafb;
+}
+
+.form-field textarea {
+  border-radius: 14px;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: #9ca3af;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  border-color: var(--primary-strong);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+  background: #ffffff;
+}
+
+.form-two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 400px) {
+  .form-two-col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.form-error {
+  margin-bottom: 8px;
+}
+
+/* Stream pills in Add Bin */
+.stream-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.stream-pill-icon {
+  font-size: 16px;
+}
+
+/* Optional: make the Add Bin tab look slightly more "primary" when active */
+.tab-button:last-child.active {
+  background: #16a34a;
+  border-color: #16a34a;
 }
