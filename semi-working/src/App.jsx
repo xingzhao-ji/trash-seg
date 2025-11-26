@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from './api';
 import CameraCapture from './CameraCapture';
+import MapView from './MapView';
 
 function App() {
   // View state management
@@ -34,6 +35,8 @@ function App() {
     location: '',
     building: '',
     floor: '',
+    latitude: null,    
+    longitude: null,   
     streams: [],
     description: ''
   });
@@ -208,7 +211,12 @@ function App() {
     }
 
     try {
-      await api.createBin(newBinData);
+      const payload = {
+        ...newBinData,
+        latitude: newBinData.latitude !== null && newBinData.latitude !== '' ? Number(newBinData.latitude) : undefined,
+        longitude: newBinData.longitude !== null && newBinData.longitude !== '' ? Number(newBinData.longitude) : undefined
+      };
+      await api.createBin(payload);
       setSuccessMessage('Bin created successfully!');
       // reset form
       setNewBinData({
@@ -218,6 +226,8 @@ function App() {
         location: '',
         building: '',
         floor: '',
+        latitude: null,
+        longitude: null,
         streams: [],
         description: ''
       });
@@ -551,8 +561,14 @@ function App() {
 
               <div className="card map-card">
                 <div className="map-title">Campus Map</div>
-                <div className="map-description">
-                  Interactive map showing bin locations would appear here
+                <div style={{ marginTop: 8 }}>
+                  <MapView
+                    bins={filteredBins}
+                    selectedBin={selectedBin}
+                    onSelectBin={(bin) => {
+                      handleInvestigateBin(bin);
+                    }}
+                  />
                 </div>
                 <div className="map-legend">
                   <span><span className="legend-dot legend-good"></span>Good</span>
@@ -664,8 +680,8 @@ function App() {
                       <option>Color by: Contamination</option>
                     </select>
                   </div>
-                  <div className="admin-map-placeholder">
-                    Campus map with bin locations and status indicators would appear here
+                  <div style={{ marginTop: 12 }}>
+                    <MapView bins={nearbyBins} selectedBin={selectedBin} onSelectBin={(b) => { setSelectedBin(b); handleInvestigateBin(b); }} height={360} />
                   </div>
                   <div className="admin-map-legend map-legend">
                     <span><span className="legend-dot legend-good"></span>Good</span>
@@ -802,6 +818,56 @@ function App() {
                   </div>
                 </div>
 
+                <div className="form-two-col">
+                  <div className="form-field">
+                    <label>Latitude</label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={newBinData.latitude ?? ''}
+                      onChange={e => setNewBinData(prev => ({ ...prev, latitude: e.target.value }))}
+                      placeholder="e.g., 34.0689"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label>Longitude</label>
+                    <input
+                      type="number"
+                      step="0.000001"
+                      value={newBinData.longitude ?? ''}
+                      onChange={e => setNewBinData(prev => ({ ...prev, longitude: e.target.value }))}
+                      placeholder="e.g., -118.4452"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <button
+                    type="button"
+                    className="secondary-btn small-btn"
+                    onClick={() => {
+                      if (!navigator.geolocation) {
+                        setNewBinError('Geolocation not supported in this browser.');
+                        return;
+                      }
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setNewBinData(prev => ({
+                            ...prev,
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude
+                          }));
+                        },
+                        (err) => setNewBinError('Could not get current location: ' + err.message),
+                        { timeout: 10000 }
+                      );
+                    }}
+                  >
+                    Use my location
+                  </button>
+                  <div style={{ color: '#666', fontSize: 13 }}>Or enter coordinates manually</div>
+                </div>
+
                 <div className="form-section-title">Streams</div>
 
                 <div className="form-field">
@@ -894,8 +960,8 @@ function App() {
 
               <div className="card bin-detail-location-card">
                 <div className="map-title">Location</div>
-                <div className="location-placeholder">
-                  Map thumbnail showing bin location would appear here
+                <div style={{ width: '100%', height: 240 }}>
+                  <MapView bins={[selectedBin]} selectedBin={selectedBin} height={240} />
                 </div>
               </div>
 

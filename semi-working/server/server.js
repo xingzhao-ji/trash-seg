@@ -626,12 +626,26 @@ app.post('/api/bin', async (req, res) => {
       building,
       floor,
       streams,
-      description
+      description,
+      latitude,
+      longitude
     } = req.body;
 
     // Validate required fields
     if (!name) {
       return res.status(400).json({ message: 'Bin name is required' });
+    }
+
+    // Validate latitude/longitude if provided
+    if (latitude !== undefined && latitude !== null) {
+      if (typeof latitude !== 'number' || Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
+        return res.status(400).json({ message: 'Invalid latitude' });
+      }
+    }
+    if (longitude !== undefined && longitude !== null) {
+      if (typeof longitude !== 'number' || Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
+        return res.status(400).json({ message: 'Invalid longitude' });
+      }
     }
 
     // Optional: Check for duplicates
@@ -658,7 +672,9 @@ app.post('/api/bin', async (req, res) => {
       building: building || '',
       floor: floor || '',
       streams: streams || [],
-      description: description || ''
+      description: description || '',
+      latitude: latitude !== undefined ? latitude : null,
+      longitude: longitude !== undefined ? longitude : null
     });
 
     res.status(201).json({
@@ -712,7 +728,7 @@ mongoose
     setInterval(updateBinStatistics, 5 * 60 * 1000);
 
     // Start the server
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`✓ Server listening on port ${PORT}`);
       console.log(`  API: http://localhost:${PORT}/api`);
       console.log(`  Health check: http://localhost:${PORT}/api/health`);
