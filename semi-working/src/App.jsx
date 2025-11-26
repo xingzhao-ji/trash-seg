@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from './api';
+import CameraCapture from './CameraCapture';
 
 function App() {
   // View state management
@@ -376,20 +377,36 @@ function App() {
           {currentScreen === 'camera' && (
             <div className="screen">
               <div className="card camera-card">
-                <div className="camera-placeholder">
-                  <div className="camera-title">Camera Preview</div>
-                  <div className="camera-subtitle">
-                    This is where the camera feed and AI segmentation overlay would appear
-                  </div>
+                <div style={{ width: '100%' }}>
+                  <CameraCapture
+                    onCancel={() => setCurrentScreen('studentHome')}
+                    onCapture={async (imgBase64) => {
+                      try {
+                        setLoading(true);
+                        setError(null);
+                        // Call API with the base64 image
+                        const items = await api.runSegmentationOnImage(imgBase64);
+                        setDetectedItems(items);
+                        setCurrentScreen('sortingResults');
+                      } catch (err) {
+                        console.error('Segmentation failed:', err);
+                        setError('Failed to run segmentation. Try example results or check server.');
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
-              <button className="primary-btn big-btn" onClick={handleUseExampleResults}>
-                Use example results
-              </button>
-              <button className="secondary-btn big-btn" onClick={goToStudentHome}>
-                Cancel
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="primary-btn big-btn" onClick={handleUseExampleResults}>
+                  Use example results
+                </button>
+                <button className="secondary-btn big-btn" onClick={goToStudentHome}>
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 

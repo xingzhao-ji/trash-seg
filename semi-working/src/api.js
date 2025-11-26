@@ -71,13 +71,14 @@ export async function fetchStudentImpact() {
   return handleResponse(res);
 }
 
-export async function runSegmentationOnImage(_file) {
+export async function runSegmentationOnImage(fileOrBase64) {
+  const body = fileOrBase64 ? { image: fileOrBase64 } : {};
   const res = await fetchWithTimeout(`${API_BASE_URL}/api/segment`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({})
+    body: JSON.stringify(body)
   });
   return handleResponse(res);
 }
