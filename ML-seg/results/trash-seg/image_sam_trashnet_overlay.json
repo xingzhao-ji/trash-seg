@@ -1,0 +1,81 @@
+{
+  "image": "/Users/yahvingali/trash-seg/image.png",
+  "masks": [
+    {
+      "mask_index": 0,
+      "sam_score": 0.9842419028282166,
+      "bbox": [
+        0,
+        0,
+        721,
+        336
+      ],
+      "area": 90313,
+      "classifier_label": "cardboard",
+      "classifier_score": 0.9493350982666016,
+      "stream": "recycle",
+      "centroid": [
+        348,
+        160
+      ],
+      "covered_points": []
+    },
+    {
+      "mask_index": 1,
+      "sam_score": 0.9471201300621033,
+      "bbox": [
+        125,
+        55,
+        226,
+        136
+      ],
+      "area": 5445,
+      "classifier_label": "glass",
+      "classifier_score": 0.4534153640270233,
+      "stream": "recycle",
+      "centroid": [
+        174,
+        96
+      ],
+      "covered_points": []
+    },
+    {
+      "mask_index": 2,
+      "sam_score": 0.9460126161575317,
+      "bbox": [
+        269,
+        0,
+        347,
+        113
+      ],
+      "area": 7103,
+      "classifier_label": "paper",
+      "classifier_score": 0.8586155772209167,
+      "stream": "recycle",
+      "centroid": [
+        306,
+        60
+      ],
+      "covered_points": []
+    },
+    {
+      "mask_index": 3,
+      "sam_score": 0.9148145318031311,
+      "bbox": [
+        577,
+        0,
+        721,
+        336
+      ],
+      "area": 41833,
+      "classifier_label": "cardboard",
+      "classifier_score": 0.9938904047012329,
+      "stream": "recycle",
+      "centroid": [
+        656,
+        179
+      ],
+      "covered_points": []
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+.venv
+.venv?*%
+ML-seg/data/taco/
+MobileSAM/weights/
+

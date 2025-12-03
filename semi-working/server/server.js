@@ -2,6 +2,10 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
 
 // Load environment variables
 dotenv.config();
@@ -22,11 +26,22 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
 // Configuration
 const PORT = process.env.PORT || 5001;
 const MONGODB_URI = process.env.MONGODB_URI;
+const SAM_TRASHNET_SCRIPT = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  'ML-seg',
+  'run_sam_maskrcnn_fusion.py'
+);
+const DEFAULT_PYTHON = path.resolve(__dirname, '..', '..', '.venv', 'bin', 'python3');
+const PYTHON_BIN =
+  process.env.SAM_TRASHNET_PYTHON ||
+  (fs.existsSync(DEFAULT_PYTHON) ? DEFAULT_PYTHON : 'python3');
 
 // Check for MongoDB URI
 if (!MONGODB_URI) {
@@ -171,6 +186,96 @@ async function updateBinStatistics() {
     console.log(`✓ Statistics updated: ${scansToday} scans, ${fullBins} full bins, ${overflowReports} overflows`);
   } catch (err) {
     console.error('Error updating statistics:', err);
+  }
+}
+
+function decodeBase64(dataUrl) {
+  let base64String = dataUrl;
+  let extension = '.jpg';
+
+  const match = /^data:(?<mime>[\w/-]+);base64,(?<data>.+)$/i.exec(dataUrl);
+  if (match && match.groups) {
+    base64String = match.groups.data;
+    const mime = match.groups.mime;
+    if (mime === 'image/png') extension = '.png';
+    if (mime === 'image/webp') extension = '.webp';
+  }
+
+  return { buffer: Buffer.from(base64String, 'base64'), extension };
+}
+
+function spawnAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, options);
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout.on('data', data => {
+      stdout += data.toString();
+    });
+    child.stderr.on('data', data => {
+      stderr += data.toString();
+    });
+    child.on('error', error => reject(error));
+    child.on('close', code => {
+      if (code !== 0) {
+        const err = new Error(`Process exited with code ${code}`);
+        err.stdout = stdout;
+        err.stderr = stderr;
+        return reject(err);
+      }
+      resolve({ stdout, stderr });
+    });
+  });
+}
+
+async function runSamTrashnetFusion(imageBase64, points = []) {
+  if (!fs.existsSync(SAM_TRASHNET_SCRIPT)) {
+    throw new Error(`SAM+TrashNet script not found at ${SAM_TRASHNET_SCRIPT}`);
+  }
+
+  const { buffer, extension } = decodeBase64(imageBase64);
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sam-trashnet-'));
+  const inputPath = path.join(tempDir, `capture${extension}`);
+  const outputDir = path.join(tempDir, 'out');
+  await fs.promises.mkdir(outputDir, { recursive: true });
+  await fs.promises.writeFile(inputPath, buffer);
+
+  const args = [
+    SAM_TRASHNET_SCRIPT,
+    '--image',
+    inputPath,
+    '--output-dir',
+    outputDir,
+    '--json',
+  ];
+  for (const point of points) {
+    if (typeof point?.x === 'number' && typeof point?.y === 'number') {
+      args.push('--target-point', `${point.x},${point.y}`);
+    }
+  }
+
+  try {
+    const { stdout } = await spawnAsync(PYTHON_BIN, args, {
+      cwd: path.resolve(__dirname, '..', '..'),
+    });
+    const trimmed = stdout.trim();
+    if (!trimmed) {
+      throw new Error('Fusion script did not return JSON');
+    }
+    const payload = JSON.parse(trimmed);
+    let overlayBase64 = null;
+    if (payload.overlay_path && fs.existsSync(payload.overlay_path)) {
+      const overlayBuffer = await fs.promises.readFile(payload.overlay_path);
+      overlayBase64 = `data:image/png;base64,${overlayBuffer.toString('base64')}`;
+    }
+    return {
+      mode: payload.mode || 'sam_trashnet',
+      overlayBase64,
+      masks: payload.masks || [],
+    };
+  } finally {
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -379,72 +484,18 @@ app.post('/api/student/impact', async (req, res) => {
   }
 });
 
-// Segment image endpoint (returns mock data until AI integration)
-app.post('/api/segment', (req, res) => {
+// Segment image endpoint (SAM + Trash-Net ROI workflow)
+app.post('/api/segment', async (req, res) => {
   try {
-    // Pool of possible items for more variety
-    const itemPool = [
-      // Compost items
-      { label: 'Apple core', stream: 'compost' },
-      { label: 'Banana peel', stream: 'compost' },
-      { label: 'Orange peel', stream: 'compost' },
-      { label: 'Paper napkin', stream: 'compost' },
-      { label: 'Food scraps', stream: 'compost' },
-      { label: 'Coffee grounds', stream: 'compost' },
-      { label: 'Tea bag', stream: 'compost' },
-      { label: 'Eggshells', stream: 'compost' },
-      { label: 'Paper towel', stream: 'compost' },
-      { label: 'Pizza crust', stream: 'compost' },
-
-      // Recycle items
-      { label: 'Aluminum can', stream: 'recycle' },
-      { label: 'Plastic water bottle', stream: 'recycle' },
-      { label: 'Cardboard box', stream: 'recycle' },
-      { label: 'Glass bottle', stream: 'recycle' },
-      { label: 'Paper', stream: 'recycle' },
-      { label: 'Newspaper', stream: 'recycle' },
-      { label: 'Plastic container', stream: 'recycle' },
-      { label: 'Milk carton', stream: 'recycle' },
-      { label: 'Soda can', stream: 'recycle' },
-      { label: 'Magazine', stream: 'recycle' },
-
-      // Landfill items
-      { label: 'Chip bag', stream: 'landfill' },
-      { label: 'Plastic wrapper', stream: 'landfill' },
-      { label: 'Styrofoam cup', stream: 'landfill' },
-      { label: 'Plastic straw', stream: 'landfill' },
-      { label: 'Candy wrapper', stream: 'landfill' },
-      { label: 'Disposable mask', stream: 'landfill' },
-      { label: 'Cigarette butt', stream: 'landfill' },
-      { label: 'Plastic utensils', stream: 'landfill' },
-      { label: 'Paper cup (lined)', stream: 'landfill' },
-      { label: 'Broken pen', stream: 'landfill' }
-    ];
-
-    // Generate random number of items (3-7)
-    const numItems = Math.floor(Math.random() * 5) + 3;
-
-    // Randomly select items without duplicates
-    const shuffled = [...itemPool].sort(() => 0.5 - Math.random());
-    const selectedItems = shuffled.slice(0, numItems);
-
-    // Add unique IDs to each item
-    const items = selectedItems.map((item, index) => ({
-      id: `${Date.now()}-${index}`,
-      label: item.label,
-      stream: item.stream
-    }));
-
-    // Log the segmentation request for statistics
-    console.log(`Segmentation requested: ${items.length} items detected`);
-
-    // Simulate processing delay
-    setTimeout(() => {
-      res.json(items);
-    }, 500);
+    const { imageBase64, points = [] } = req.body || {};
+    if (!imageBase64) {
+      return res.status(400).json({ message: 'imageBase64 is required' });
+    }
+    const result = await runSamTrashnetFusion(imageBase64, points);
+    res.json(result);
   } catch (err) {
     console.error('Error in /api/segment:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Segmentation failed', error: err.message });
   }
 });
 
