@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import api from './api';
 import CameraCapture from './CameraCapture';
 import MapView from './MapView';
@@ -30,6 +30,14 @@ function App() {
   const [hideFullBins, setHideFullBins] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [filterFullBins, setFilterFullBins] = useState(false); // false = show all bins, true = show only full bins
+  const [segmentationOverlay, setSegmentationOverlay] = useState(null);
+  const [segmentationMode, setSegmentationMode] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [segmentationLoading, setSegmentationLoading] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState('');
+  const [roiPoints, setRoiPoints] = useState([]);
+  const [hasRunSegmentation, setHasRunSegmentation] = useState(false);
+  const segmentationRequestIdRef = useRef(0);
 
   // Bin creation
   const [newBinData, setNewBinData] = useState({
@@ -198,25 +206,126 @@ function App() {
       setLoading(false);
     }
   }
+
+  function resetCameraState() {
+    setCapturedImage(null);
+    setSegmentationOverlay(null);
+    setSegmentationMode(null);
+    setSegmentationLoading(false);
+    setCameraMessage('');
+    setDetectedItems([]);
+    setRoiPoints([]);
+    setHasRunSegmentation(false);
+    segmentationRequestIdRef.current += 1;
+  }
+
+  function buildItemsFromMasks(masks = []) {
+    const timestamp = Date.now();
+    return masks.map((mask, index) => {
+      const label =
+        mask.classifier_label ||
+        mask.label ||
+        (mask.stream ? `${mask.stream} item` : `Segment ${index + 1}`);
+      return {
+        id: `mask-${timestamp}-${index}`,
+        label,
+        stream: mask.stream || 'unclassified',
+        area: mask.area ?? 0,
+        bbox: mask.bbox ?? null,
+        centroid: mask.centroid ?? null,
+      };
+    });
+  }
+
+  async function runSegmentation(pointsOverride = null) {
+    const imageData = capturedImage;
+    if (!imageData) return;
+    const points = Array.isArray(pointsOverride) ? pointsOverride : roiPoints;
+    const requestId = ++segmentationRequestIdRef.current;
+    setSegmentationLoading(true);
+    setCameraMessage('Running segmentation…');
+
+    try {
+      const result = await api.runSegmentationOnImage(imageData, { points });
+      if (requestId !== segmentationRequestIdRef.current) return;
+      const items = buildItemsFromMasks(result.masks || []);
+      setDetectedItems(items);
+      setSegmentationOverlay(result.overlayBase64 || imageData);
+      setSegmentationMode(result.mode || 'sam_trashnet');
+      setCameraMessage(
+        items.length ? `${items.length} segments detected` : 'No segments detected'
+      );
+      setHasRunSegmentation(true);
+    } catch (err) {
+      if (requestId !== segmentationRequestIdRef.current) return;
+      console.error('Segmentation failed:', err);
+      setError('Failed to run segmentation. Try retaking the photo or check the server.');
+      setCameraMessage('Segmentation failed');
+      setHasRunSegmentation(false);
+    } finally {
+      if (requestId === segmentationRequestIdRef.current) {
+        setSegmentationLoading(false);
+      }
+    }
+  }
+
+  function handleAddRoiPoint(point) {
+    if (!capturedImage) return;
+    setRoiPoints(prev => {
+      const next = [...prev, point];
+      setCameraMessage(
+        next.length
+          ? `Selected ${next.length} target${next.length > 1 ? 's' : ''}. Run segmentation when ready.`
+          : 'Tap each object (optional), then run segmentation.'
+      );
+      return next;
+    });
+    setHasRunSegmentation(false);
+  }
+
+  function handleClearRoiPoints() {
+    if (!capturedImage) return;
+    setRoiPoints([]);
+    setCameraMessage('Selections cleared. Tap items again or run segmentation.');
+    setHasRunSegmentation(false);
+  }
+
+  function handleRunSegmentation() {
+    if (!capturedImage || segmentationLoading) return;
+    runSegmentation();
+  }
+
+  function handleCameraCapture(imgBase64) {
+    setCapturedImage(imgBase64);
+    setSegmentationOverlay(null);
+    setSegmentationMode(null);
+    setDetectedItems([]);
+    setRoiPoints([]);
+    setHasRunSegmentation(false);
+    setCameraMessage('Tap each object (optional), then run segmentation.');
+  }
   // Navigation functions
   function goToStudentHome() {
+    resetCameraState();
     setCurrentScreen('studentHome');
     setSuccessMessage('');
   }
 
   function goToCamera() {
+    resetCameraState();
     setCurrentScreen('camera');
   }
 
   async function handleUseExampleResults() {
-    try {
-      const items = await api.runSegmentationOnImage(null);
-      setDetectedItems(items);
-      setCurrentScreen('sortingResults');
-    } catch (err) {
-      console.error('Error getting segmentation results:', err);
-      setError('Failed to get example results.');
-    }
+    resetCameraState();
+    const sampleItems = [
+      { id: `sample-${Date.now()}-0`, label: 'Plastic bottle', stream: 'recycle' },
+      { id: `sample-${Date.now()}-1`, label: 'Paper napkin', stream: 'compost' },
+      { id: `sample-${Date.now()}-2`, label: 'Snack wrapper', stream: 'landfill' },
+    ];
+    setDetectedItems(sampleItems);
+    setSegmentationMode('example');
+    setCurrentScreen('sortingResults');
   }
 
   async function handleDoneSorting() {
@@ -520,40 +629,110 @@ function App() {
               <div className="card camera-card">
                 <div style={{ width: '100%' }}>
                   <CameraCapture
-                    onCancel={() => setCurrentScreen('studentHome')}
-                    onCapture={async (imgBase64) => {
-                      try {
-                        setLoading(true);
-                        setError(null);
-                        // Call API with the base64 image
-                        const items = await api.runSegmentationOnImage(imgBase64);
-                        setDetectedItems(items);
-                        setCurrentScreen('sortingResults');
-                      } catch (err) {
-                        console.error('Segmentation failed:', err);
-                        setError('Failed to run segmentation. Try example results or check server.');
-                      } finally {
-                        setLoading(false);
-                      }
-                    }}
+                    previewImage={segmentationOverlay || capturedImage}
+                    statusMessage={
+                      cameraMessage || (segmentationLoading ? 'Running segmentation…' : '')
+                    }
+                    onCapture={handleCameraCapture}
+                    onCancel={goToStudentHome}
+                    onRetake={resetCameraState}
+                    roiPoints={roiPoints}
+                    onAddRoiPoint={
+                      capturedImage && !segmentationLoading ? handleAddRoiPoint : null
+                    }
+                    onClearRoiPoints={
+                      capturedImage && roiPoints.length && !segmentationLoading
+                        ? handleClearRoiPoints
+                        : null
+                    }
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="primary-btn big-btn" onClick={handleUseExampleResults}>
-                  Use example results
-                </button>
-                <button className="secondary-btn big-btn" onClick={goToStudentHome}>
-                  Cancel
-                </button>
-              </div>
+              {capturedImage ? (
+                <div className="card status-card">
+                  <div className="stream-header">
+                    <span className="stream-icon">{segmentationLoading ? '⏳' : '✨'}</span>
+                    <div>
+                      <div className="stream-title">
+                        {segmentationLoading
+                          ? 'Analyzing photo…'
+                          : hasRunSegmentation
+                          ? 'Segmentation ready'
+                          : 'Select and segment'}
+                      </div>
+                      <div className="stream-description">
+                        {cameraMessage ||
+                          (hasRunSegmentation
+                            ? 'Review the detected items below.'
+                            : 'Tap each object (optional), then run segmentation.')}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+                    <button
+                      className="primary-btn big-btn"
+                      onClick={handleRunSegmentation}
+                      disabled={segmentationLoading || !capturedImage}
+                    >
+                      Run segmentation
+                    </button>
+                    <button
+                      className="secondary-btn big-btn"
+                      onClick={() => setCurrentScreen('sortingResults')}
+                      disabled={
+                        segmentationLoading || !hasRunSegmentation || detectedItems.length === 0
+                      }
+                    >
+                      View sorting suggestions
+                    </button>
+                    <button
+                      className="secondary-btn big-btn"
+                      onClick={handleUseExampleResults}
+                      disabled={segmentationLoading}
+                    >
+                      Use example results
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="primary-btn big-btn" onClick={handleUseExampleResults}>
+                    Use example results
+                  </button>
+                  <button className="secondary-btn big-btn" onClick={goToStudentHome}>
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {/* Sorting Results Screen */}
           {currentScreen === 'sortingResults' && (
             <div className="screen">
+              {(segmentationOverlay || capturedImage) && (
+                <div className="card results-card">
+                  <div className="stream-header">
+                    <span className="stream-icon">🖼️</span>
+                    <div>
+                      <div className="stream-title">Segmentation overlay</div>
+                      <div className="stream-description">
+                        {segmentationMode === 'example'
+                          ? 'Example results shown'
+                          : segmentationMode
+                          ? `Segmentation (${segmentationMode})`
+                          : 'Segmentation results'}
+                      </div>
+                    </div>
+                  </div>
+                  <img
+                    src={segmentationOverlay || capturedImage}
+                    alt="Segmentation overlay"
+                    style={{ width: '100%', borderRadius: 12, marginTop: 12 }}
+                  />
+                </div>
+              )}
               <div className="card results-card">
                 {/* Compost items */}
                 <div className="stream-group">

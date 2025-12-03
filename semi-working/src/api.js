@@ -77,15 +77,26 @@ export async function fetchStudentImpact() {
   return handleResponse(res);
 }
 
-export async function runSegmentationOnImage(fileOrBase64) {
-  const body = fileOrBase64 ? { image: fileOrBase64 } : {};
-  const res = await fetchWithTimeout(`${API_BASE_URL}/api/segment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
+export async function runSegmentationOnImage(
+  imageBase64,
+  { points = [], timeoutMs = 120000 } = {}
+) {
+  if (!imageBase64) {
+    throw new Error('imageBase64 is required for segmentation');
+  }
+
+  const body = { imageBase64, points };
+  const res = await fetchWithTimeout(
+    `${API_BASE_URL}/api/segment`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body)
     },
-    body: JSON.stringify(body)
-  });
+    timeoutMs
+  );
   return handleResponse(res);
 }
 
