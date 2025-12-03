@@ -197,10 +197,28 @@ app.get('/api/station/current', async (req, res) => {
   }
 });
 
-// Get nearby bins
+// Get nearby bins with distance calculation
 app.get('/api/bins/nearby', async (req, res) => {
   try {
-    const bins = await Bin.find().sort({ distance: 1 }).lean();
+    const { latitude, longitude, radius } = req.query;
+    
+    // If coordinates provided, calculate distances
+    if (latitude && longitude) {
+      const lat = parseFloat(latitude);
+      const lon = parseFloat(longitude);
+      
+      // Validate coordinates
+      if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        return res.status(400).json({ message: 'Invalid coordinates' });
+      }
+      
+      const radiusMeters = radius ? parseInt(radius) : 5000; // Default 5km radius
+      const nearbyBins = await FacilitiesIntegration.getNearbyBins(lat, lon, radiusMeters);
+      return res.json(nearbyBins);
+    }
+    
+    // If no coordinates, return all bins sorted by name
+    const bins = await Bin.find({ active: true }).sort({ name: 1 }).lean();
     res.json(bins);
   } catch (err) {
     console.error('Error in /api/bins/nearby:', err);

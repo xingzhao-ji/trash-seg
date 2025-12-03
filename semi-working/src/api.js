@@ -51,8 +51,14 @@ export async function fetchCurrentStation() {
   return handleResponse(res);
 }
 
-export async function fetchNearbyBins() {
-  const res = await fetchWithTimeout(`${API_BASE_URL}/api/bins/nearby`);
+export async function fetchNearbyBins(latitude = null, longitude = null, radius = 5000) {
+  let url = `${API_BASE_URL}/api/bins/nearby`;
+  
+  if (latitude !== null && longitude !== null) {
+    url += `?latitude=${latitude}&longitude=${longitude}&radius=${radius}`;
+  }
+  
+  const res = await fetchWithTimeout(url);
   return handleResponse(res);
 }
 
