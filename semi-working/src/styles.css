@@ -549,6 +549,20 @@ body {
   color: var(--primary-strong);
 }
 
+/* Specific styles for Problem Bins filter row */
+.problem-bins-filter-row {
+  justify-content: flex-start;
+  gap: 15px;
+  margin-bottom: 16px;
+}
+
+.problem-bins-filter-row .filter-pill {
+  flex: 0;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
 .checkbox-row {
   display: inline-flex;
   align-items: center;

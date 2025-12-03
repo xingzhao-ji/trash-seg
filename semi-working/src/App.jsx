@@ -26,6 +26,7 @@ function App() {
   const [binFilter, setBinFilter] = useState('all');
   const [hideFullBins, setHideFullBins] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [filterFullBins, setFilterFullBins] = useState(false); // false = show all bins, true = show only full bins
 
   // Bin creation
   const [newBinData, setNewBinData] = useState({
@@ -35,8 +36,8 @@ function App() {
     location: '',
     building: '',
     floor: '',
-    latitude: null,    
-    longitude: null,   
+    latitude: null,
+    longitude: null,
     streams: [],
     description: ''
   });
@@ -128,6 +129,14 @@ function App() {
       setLoading(false);
     }
   }
+
+  // Filtered bins based on fullness
+  const displayedBins = nearbyBins.filter(bin => {
+    if (filterFullBins) {
+      return bin.fullness >= 80; // Only show full bins
+    }
+    return true; // Show all bins
+  });
 
   // Navigation functions
   function goToStudentHome() {
@@ -309,7 +318,7 @@ function App() {
                 onClick={() => {
                   if (currentScreen === 'binDetail') {
                     setCurrentScreen('adminDashboard');
-                    setAdminTab('problemBins');
+                    setAdminTab('bins');
                   } else if (view === 'admin') {
                     setCurrentScreen('adminDashboard');
                   } else {
@@ -634,10 +643,10 @@ function App() {
                   Graphs/Stats
                 </button>
                 <button
-                  className={`tab-button ${adminTab === 'problemBins' ? 'active' : ''}`}
-                  onClick={() => setAdminTab('problemBins')}
+                  className={`tab-button ${adminTab === 'bins' ? 'active' : ''}`}
+                  onClick={() => setAdminTab('bins')}
                 >
-                  Problem Bins
+                  Bins
                 </button>
                 <button
                   className={`tab-button ${adminTab === 'addBin' ? 'active' : ''}`}
@@ -709,15 +718,31 @@ function App() {
                 </div>
               )}
 
-              {/* Problem Bins Tab */}
-              {adminTab === 'problemBins' && (
+              {/* Bins Tab */}
+              {adminTab === 'bins' && (
                 <div className="problem-bins-list">
-                  {problemBins.map(bin => (
+                  {/* Filter Button */}
+                  <div className="filter-row problem-bins-filter-row">                    <button
+                    className={`filter-pill ${!filterFullBins ? 'active' : ''}`}
+                    onClick={() => setFilterFullBins(false)}
+                  >
+                    All Bins
+                  </button>
+                    <button
+                      className={`filter-pill ${filterFullBins ? 'active' : ''}`}
+                      onClick={() => setFilterFullBins(true)}
+                    >
+                      Full Bins Only
+                    </button>
+                  </div>
+
+                  {/* Bin List */}
+                  {displayedBins.map(bin => (
                     <div key={bin._id} className="card problem-bin-card">
                       <div className="problem-bin-main">
                         <div className="problem-bin-name">{bin.name}</div>
-                        <div className="problem-bin-contam">
-                          Contamination: {bin.contamination}%
+                        <div className="problem-bin-fullness">
+                          Fullness: {bin.fullness}%
                         </div>
                       </div>
                       <button
@@ -939,7 +964,7 @@ function App() {
                 className="link-row back-link"
                 onClick={() => {
                   setCurrentScreen('adminDashboard');
-                  setAdminTab('problemBins');
+                  setAdminTab('bins');
                 }}
               >
                 ← Back to Dashboard

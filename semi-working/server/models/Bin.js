@@ -51,13 +51,25 @@ const binSchema = new mongoose.Schema({
     default: null
   },
 
-  // Status Information
-  fullness: {
+  // Status Information 
+  fullness: { // Kept for backward compatibility
     type: Number,
     min: 0,
     max: 100,
     default: 0
   },
+  fullnessHistory: [
+    {
+      fullness: {
+        type: Number, // e.g., 0 to 100
+        required: true
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ],
   level: {
     type: String,
     enum: ['Good', 'Warning', 'Critical'],
