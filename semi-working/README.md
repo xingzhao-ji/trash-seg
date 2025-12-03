@@ -26,7 +26,6 @@ A full-stack web application for trash sorting and bin monitoring, optimized for
 
 ### UCLA Facilities Integration
 - **Automated Data Sync**: Import bin locations from facilities management
-- **Contamination Tracking**: Sync contamination reports
 - **Facility Reports**: Generate reports for UCLA management
 - **GPS Integration**: Location-based bin discovery
 

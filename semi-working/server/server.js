@@ -103,9 +103,10 @@ async function updateBinStatistics() {
 
     const problemBinsData = await ProblemBin.find();
 
-    let avgContamination = 0;
-    let contaminationDelta = 'No contamination data';
+    // let avgContamination = 0;
+    // let contaminationDelta = 'No contamination data';
 
+    /*
     if (binsWithContamination.length > 0 || problemBinsData.length > 0) {
       // Combine contamination data from both collections
       const allContaminations = [
@@ -118,6 +119,7 @@ async function updateBinStatistics() {
         contaminationDelta = 'Based on reported bins';
       }
     }
+    */
 
     // Count overflow reports today
     const overflowReports = await FullnessReport.countDocuments({
@@ -136,15 +138,15 @@ async function updateBinStatistics() {
       { upsert: true, new: true }
     );
 
-    await OverviewStat.findOneAndUpdate(
-      { statId: 'avgContamination' },
-      {
-        label: 'Avg Contamination',
-        value: parseFloat(avgContamination),
-        delta: contaminationDelta
-      },
-      { upsert: true, new: true }
-    );
+    // await OverviewStat.findOneAndUpdate(
+    //   { statId: 'avgContamination' },
+    //   {
+    //     label: 'Avg Contamination',
+    //     value: parseFloat(avgContamination),
+    //     delta: contaminationDelta
+    //   },
+    //   { upsert: true, new: true }
+    // );
 
     await OverviewStat.findOneAndUpdate(
       { statId: 'binsOver80' },
@@ -220,7 +222,7 @@ app.get('/api/admin/overview', async (req, res) => {
     if (stats.length === 0) {
       const defaultStats = [
         { statId: 'scansToday', label: 'Scans Today', value: 0, delta: 'No data yet' },
-        { statId: 'avgContamination', label: 'Avg Contamination', value: 0, delta: 'No data yet' },
+        // { statId: 'avgContamination', label: 'Avg Contamination', value: 0, delta: 'No data yet' },
         { statId: 'binsOver80', label: 'Bins > 80% Full', value: 0, delta: 'All good' },
         { statId: 'overflowReports', label: 'Overflow Reports', value: 0, delta: 'Today' }
       ];

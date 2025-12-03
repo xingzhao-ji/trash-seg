@@ -709,12 +709,6 @@ function App() {
                       Stacked bar chart showing waste composition across different campus locations
                     </div>
                   </div>
-                  <div className="card graph-card">
-                    <div className="graph-title">Contamination Trend</div>
-                    <div className="graph-placeholder">
-                      Line chart showing contamination percentage over time
-                    </div>
-                  </div>
                 </div>
               )}
 
