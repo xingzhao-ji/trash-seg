@@ -203,22 +203,22 @@ app.get('/api/station/current', async (req, res) => {
 app.get('/api/bins/nearby', async (req, res) => {
   try {
     const { latitude, longitude, radius } = req.query;
-    
+
     // If coordinates provided, calculate distances
     if (latitude && longitude) {
       const lat = parseFloat(latitude);
       const lon = parseFloat(longitude);
-      
+
       // Validate coordinates
       if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
         return res.status(400).json({ message: 'Invalid coordinates' });
       }
-      
+
       const radiusMeters = radius ? parseInt(radius) : 5000; // Default 5km radius
       const nearbyBins = await FacilitiesIntegration.getNearbyBins(lat, lon, radiusMeters);
       return res.json(nearbyBins);
     }
-    
+
     // If no coordinates, return all bins sorted by name
     const bins = await Bin.find({ active: true }).sort({ name: 1 }).lean();
     res.json(bins);
@@ -451,26 +451,18 @@ app.post('/api/segment', (req, res) => {
 // Report bin fullness
 app.post('/api/bins/report-fullness', async (req, res) => {
   try {
-    const { stationId, level, binId } = req.body;
+    const { binId, level } = req.body;
 
-    if (!level) {
-      return res.status(400).json({ message: 'Level is required' });
+    if (!binId || !level) {
+      return res.status(400).json({ message: 'Bin ID and fullness level are required' });
     }
 
-    // Validate level
-    const validLevels = ['Empty', '1/4 Full', 'Half Full', '3/4 Full', 'Full', 'Overflowing'];
-    if (!validLevels.includes(level)) {
-      return res.status(400).json({ message: 'Invalid level' });
+    const bin = await Bin.findById(binId);
+    if (!bin) {
+      return res.status(404).json({ message: 'Bin not found' });
     }
 
-    // Create fullness report
-    const report = await FullnessReport.create({
-      station: stationId || undefined,
-      level,
-      createdAt: new Date()
-    });
-
-    // Update bin fullness if binId provided
+    // Update bin fullness
     if (binId) {
       const fullnessMap = {
         'Empty': 0,

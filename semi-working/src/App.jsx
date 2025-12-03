@@ -318,6 +318,19 @@ function App() {
     setCurrentScreen('nearbyBins');
   }
 
+  function handleUseBin(bin) {
+    console.log('Using bin:', bin);
+    // Replace station details with the selected bin's details
+    setStation({
+      ...station,
+      _id: bin._id,
+      name: bin.name,
+      description: bin.description,
+      qrCode: bin.qrCode,
+    });
+    setCurrentScreen('studentHome'); // Navigate back to the student home screen
+  }
+
   function handleViewToggle(newView) {
     setView(newView);
     if (newView === 'admin') {
@@ -329,6 +342,7 @@ function App() {
   }
 
   function handleInvestigateBin(bin) {
+    console.log('Investigating bin:', bin);
     setSelectedBin(bin);
     setCurrentScreen('binDetail');
   }
@@ -421,8 +435,12 @@ function App() {
                 className="back-button"
                 onClick={() => {
                   if (currentScreen === 'binDetail') {
-                    setCurrentScreen('adminDashboard');
-                    setAdminTab('problemBins');
+                    if (view === 'admin') {
+                      setCurrentScreen('adminDashboard');
+                      setAdminTab('bins');
+                    } else {
+                      setCurrentScreen('nearbyBins'); // student came from Nearby Bins
+                    }
                   } else if (view === 'admin') {
                     setCurrentScreen('adminDashboard');
                   } else {
@@ -754,8 +772,22 @@ function App() {
                           )}
                         </div>
                       </div>
-                      <div className="bin-nav">
-                        <span className="bin-nav-icon">→</span>
+                      <div className="bin-actions">
+                        <button
+                          className="secondary-btn small-btn"
+                          onClick={() => handleInvestigateBin(bin)}
+                        >
+                          Investigate
+                        </button>
+                        <button
+                          className="primary-btn small-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();      // prevent card onClick from firing
+                            handleUseBin(bin);
+                          }}
+                        >
+                          Use This Bin
+                        </button>
                       </div>
                     </div>
                   ))
@@ -807,7 +839,7 @@ function App() {
               {/* Overview Tab */}
               {adminTab === 'overview' && (
                 <div className="overview-grid">
-                  {overviewStats.map(stat => (
+                  {overviewStats.filter(stat => stat.statId != "avgContamination").map(stat => (
                     <div key={stat.statId} className="card overview-card">
                       <div className="overview-label">{stat.label}</div>
                       <div className="overview-value">
@@ -1110,11 +1142,15 @@ function App() {
               <button
                 className="link-row back-link"
                 onClick={() => {
-                  setCurrentScreen('adminDashboard');
-                  setAdminTab('bins');
+                  if (view === 'admin') {
+                    setCurrentScreen('adminDashboard');
+                    setAdminTab('bins');
+                  } else {
+                    setCurrentScreen('nearbyBins');
+                  }
                 }}
               >
-                ← Back to Dashboard
+                ← Back
               </button>
 
               <div className="card">

@@ -53,11 +53,11 @@ export async function fetchCurrentStation() {
 
 export async function fetchNearbyBins(latitude = null, longitude = null, radius = 5000) {
   let url = `${API_BASE_URL}/api/bins/nearby`;
-  
+
   if (latitude !== null && longitude !== null) {
     url += `?latitude=${latitude}&longitude=${longitude}&radius=${radius}`;
   }
-  
+
   const res = await fetchWithTimeout(url);
   return handleResponse(res);
 }
@@ -90,13 +90,13 @@ export async function runSegmentationOnImage(fileOrBase64) {
 }
 
 // Bin
-export async function reportBinFullness(stationId, level) {
+export async function reportBinFullness(binId, level) {
   const res = await fetchWithTimeout(`${API_BASE_URL}/api/bins/report-fullness`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ stationId, level })
+    body: JSON.stringify({ binId, level })
   });
   return handleResponse(res);
 }
