@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap, Circle } from 'react-leaflet';
 
 function MapFollower({ center, zoom = 15 }) {
   const map = useMap();
@@ -11,21 +11,27 @@ function MapFollower({ center, zoom = 15 }) {
   return null;
 }
 
-function FitBounds({ coords }) {
+function FitBounds({ coords, userLocation }) {
   const map = useMap();
   useEffect(() => {
     if (!coords || coords.length === 0) return;
-    if (coords.length === 1) {
-      map.setView([coords[0].lat, coords[0].lng], 15, { animate: true });
+    
+    // Include user location in bounds if available
+    const allCoords = userLocation 
+      ? [...coords, { lat: userLocation.lat, lng: userLocation.lng }]
+      : coords;
+    
+    if (allCoords.length === 1) {
+      map.setView([allCoords[0].lat, allCoords[0].lng], 15, { animate: true });
       return;
     }
-    const latLngs = coords.map(c => [c.lat, c.lng]);
+    const latLngs = allCoords.map(c => [c.lat, c.lng]);
     try {
       map.fitBounds(latLngs, { padding: [40, 40], maxZoom: 17 });
     } catch (e) {
-
+      // Silently handle error
     }
-  }, [coords, map]);
+  }, [coords, userLocation, map]);
   return null;
 }
 
@@ -43,28 +49,64 @@ function coordsFrom(bin) {
   return null;
 }
 
-export default function MapView({ bins = [], selectedBin = null, onSelectBin = () => {} }) {
+function formatDistance(meters) {
+  if (meters < 1000) return `${Math.round(meters)}m`;
+  return `${(meters / 1000).toFixed(1)}km`;
+}
+
+export default function MapView({ bins = [], selectedBin = null, onSelectBin = () => {}, userLocation = null, height = 420 }) {
   const validCoords = bins.map(coordsFrom).filter(Boolean);
 
   const fallback = { lat: 34.0689, lng: -118.4452 };
 
-  // Choose center: first valid coord or fallback
-  const defaultCenter = validCoords[0] || fallback;
+  // Choose center: user location, selected bin, first valid coord, or fallback
+  const defaultCenter = userLocation || (selectedBin ? coordsFrom(selectedBin) : null) || validCoords[0] || fallback;
 
   return (
-    <div style={{ width: '100%', height: 420, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+    <div style={{ width: '100%', height, borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
       <MapContainer center={[defaultCenter.lat, defaultCenter.lng]} zoom={15} style={{ width: '100%', height: '100%' }}>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
         />
 
-        {/* Fit bounds only when we have coords */}
-        {validCoords.length > 0 && <FitBounds coords={validCoords} />}
+        {/* Fit bounds when we have coords */}
+        {validCoords.length > 0 && <FitBounds coords={validCoords} userLocation={userLocation} />}
 
-        <MapFollower center={selectedBin ? coordsFrom(selectedBin) || defaultCenter : defaultCenter} />
+        <MapFollower center={selectedBin ? coordsFrom(selectedBin) || defaultCenter : (userLocation || defaultCenter)} />
 
-        {/* Render markers only when coordinates exist */}
+        {/* User location marker */}
+        {userLocation && (
+          <>
+            <CircleMarker
+              center={[userLocation.lat, userLocation.lng]}
+              radius={8}
+              color="#2563eb"
+              fillColor="#3b82f6"
+              fillOpacity={1}
+              weight={3}
+            >
+              <Popup>
+                <div style={{ minWidth: 120 }}>
+                  <strong>Your Location</strong>
+                </div>
+              </Popup>
+            </CircleMarker>
+            {/* Accuracy circle */}
+            <Circle
+              center={[userLocation.lat, userLocation.lng]}
+              radius={userLocation.accuracy || 50}
+              pathOptions={{
+                color: '#3b82f6',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.1,
+                weight: 1
+              }}
+            />
+          </>
+        )}
+
+        {/* Render bin markers */}
         {validCoords.length > 0
           ? bins.map(bin => {
               const c = coordsFrom(bin);
@@ -90,6 +132,11 @@ export default function MapView({ bins = [], selectedBin = null, onSelectBin = (
                   <Popup>
                     <div style={{ minWidth: 180 }}>
                       <strong>{bin.name || 'Unknown bin'}</strong>
+                      {bin.distance != null && (
+                        <div style={{ fontSize: 12, marginTop: 4, color: '#6b7280' }}>
+                          📍 {formatDistance(bin.distance)} away
+                        </div>
+                      )}
                       <div style={{ fontSize: 12, marginTop: 6 }}>
                         Fullness: {bin.fullness != null ? `${bin.fullness}%` : 'Unknown'}
                       </div>
@@ -108,7 +155,29 @@ export default function MapView({ bins = [], selectedBin = null, onSelectBin = (
           : null}
       </MapContainer>
       
-      {/* Informational overlay when there are no bins (This is just a fallback used when testing, might remove it later)*/}
+      {/* Location status indicator */}
+      {userLocation && (
+        <div style={{
+          position: 'absolute',
+          left: 12,
+          top: 12,
+          padding: '6px 10px',
+          background: 'rgba(37, 99, 235, 0.95)',
+          borderRadius: 6,
+          color: 'white',
+          fontSize: 12,
+          fontWeight: 500,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }}>
+          <span style={{ fontSize: 14 }}>📍</span>
+          Location enabled
+        </div>
+      )}
+      
+      {/* Informational overlay when there are no bins */}
       {validCoords.length === 0 && (
         <div style={{
           position: 'absolute',

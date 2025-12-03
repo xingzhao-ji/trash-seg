@@ -16,6 +16,9 @@ function App() {
   const [problemBins, setProblemBins] = useState([]);
   const [studentImpact, setStudentImpact] = useState({ compost: 0, recycle: 0, landfill: 0 });
   const [selectedBin, setSelectedBin] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
 
   // UI states
   const [loading, setLoading] = useState(true);
@@ -44,10 +47,65 @@ function App() {
   const [newBinError, setNewBinError] = useState('');
   const [newBinLoading, setNewBinLoading] = useState(false);
 
+  // Filtered bins based on fullness
+  const displayedBins = nearbyBins.filter(bin => {
+    if (filterFullBins) {
+      return bin.fullness >= 80; // Only show full bins
+    }
+    return true; // Show all bins
+  });
+  // Get User Location
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      // Request permission and start watching position
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          });
+          setLocationError(null);
+          setIsLoadingLocation(false);
+        },
+        (error) => {
+          console.error('Location error:', error);
+          let errorMsg = 'Unable to get location';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMsg = 'Location permission denied. Please enable location access in your browser settings.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMsg = 'Location information unavailable.';
+              break;
+            case error.TIMEOUT:
+              errorMsg = 'Location request timed out.';
+              break;
+          }
+          setLocationError(errorMsg);
+          setIsLoadingLocation(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 30000
+        }
+      );
+
+      // Cleanup function
+      return () => {
+        navigator.geolocation.clearWatch(watchId);
+      };
+    } else {
+      setLocationError('Geolocation is not supported by your browser.');
+      setIsLoadingLocation(false);
+    }
+  }, []);
+
   // Load initial data
   useEffect(() => {
     loadData();
-  }, []);
+  }, [userLocation]);
 
   async function loadData() {
     setLoading(true);
@@ -63,12 +121,18 @@ function App() {
         throw new Error(`Cannot connect to server at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}. Make sure the backend is running.`);
       }
 
+
       console.log('Loading data from API...');
+
+      // Prepare bins fetch with location if available
+      const binsPromise = userLocation
+        ? api.fetchNearbyBins(userLocation.lat, userLocation.lng, 5000)
+        : api.fetchNearbyBins();
 
       // Load all data in parallel with individual error handling
       const [stationData, binsData, statsData, problemData, impactData] = await Promise.allSettled([
         api.fetchCurrentStation(),
-        api.fetchNearbyBins(),
+        binsPromise,  // Use the location-aware promise
         api.fetchOverviewStats(),
         api.fetchProblemBins(),
         api.fetchStudentImpact()
@@ -88,7 +152,12 @@ function App() {
       }
 
       if (binsData.status === 'fulfilled') {
-        setNearbyBins(binsData.value);
+        const bins = binsData.value;
+        // Log if we got distance data
+        if (userLocation) {
+          console.log(`Loaded ${bins.length} bins with distances from user location`);
+        }
+        setNearbyBins(bins);
       } else {
         console.error('Failed to load bins:', binsData.reason);
         setNearbyBins([]);
@@ -129,15 +198,6 @@ function App() {
       setLoading(false);
     }
   }
-
-  // Filtered bins based on fullness
-  const displayedBins = nearbyBins.filter(bin => {
-    if (filterFullBins) {
-      return bin.fullness >= 80; // Only show full bins
-    }
-    return true; // Show all bins
-  });
-
   // Navigation functions
   function goToStudentHome() {
     setCurrentScreen('studentHome');
@@ -309,6 +369,50 @@ function App() {
   return (
     <div className="app-root">
       <div className="app-container">
+        {/* ADD: Location status banners */}
+        {isLoadingLocation && (
+          <div style={{
+            padding: '8px 16px',
+            background: '#3b82f6',
+            color: 'white',
+            textAlign: 'center',
+            fontSize: 14
+          }}>
+            📍 Getting your location...
+          </div>
+        )}
+
+        {locationError && (
+          <div style={{
+            padding: '8px 16px',
+            background: '#fef2f2',
+            color: '#991b1b',
+            textAlign: 'center',
+            fontSize: 14,
+            borderBottom: '1px solid #fecaca',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12
+          }}>
+            <span>⚠️ {locationError}</span>
+            <button
+              // onClick={retryLocation}
+              style={{
+                padding: '4px 12px',
+                background: '#991b1b',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                fontSize: 12,
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <header className="app-header">
           <div className="app-header-left">
@@ -318,7 +422,7 @@ function App() {
                 onClick={() => {
                   if (currentScreen === 'binDetail') {
                     setCurrentScreen('adminDashboard');
-                    setAdminTab('bins');
+                    setAdminTab('problemBins');
                   } else if (view === 'admin') {
                     setCurrentScreen('adminDashboard');
                   } else {
@@ -569,7 +673,19 @@ function App() {
               </div>
 
               <div className="card map-card">
-                <div className="map-title">Campus Map</div>
+                <div className="map-title">
+                  Campus Map
+                  {userLocation && (
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 'normal',
+                      color: '#10b981',
+                      marginLeft: 8
+                    }}>
+                      • Location enabled
+                    </span>
+                  )}
+                </div>
                 <div style={{ marginTop: 8 }}>
                   <MapView
                     bins={filteredBins}
@@ -577,6 +693,7 @@ function App() {
                     onSelectBin={(bin) => {
                       handleInvestigateBin(bin);
                     }}
+                    userLocation={userLocation}
                   />
                 </div>
                 <div className="map-legend">
@@ -587,35 +704,62 @@ function App() {
               </div>
 
               <div className="bin-list">
-                {filteredBins.map(bin => (
-                  <div key={bin._id} className="card bin-card">
-                    <div className="bin-card-main">
-                      <div className="bin-fullness-visual">
-                        <div className="fullness-bar">
-                          <div
-                            className="fullness-fill"
-                            style={{ width: `${bin.fullness}%` }}
-                          ></div>
-                        </div>
-                        <span className={`status-badge status-${bin.level?.toLowerCase()}`}>
-                          {bin.level}
-                        </span>
-                      </div>
-                      <div className="bin-text">
-                        <div className="bin-name">{bin.name}</div>
-                        <div className="bin-streams">
-                          {bin.streams?.includes('compost') && <span className="stream-chip">🌱</span>}
-                          {bin.streams?.includes('recycle') && <span className="stream-chip">♻️</span>}
-                          {bin.streams?.includes('landfill') && <span className="stream-chip">🗑️</span>}
-                        </div>
-                        <div className="bin-distance">~{bin.distance}m away</div>
-                      </div>
-                    </div>
-                    <div className="bin-nav">
-                      <span className="bin-nav-icon">→</span>
-                    </div>
+                {filteredBins.length === 0 ? (
+                  <div className="card" style={{ padding: 20, textAlign: 'center', color: '#6b7280' }}>
+                    No bins found matching your filters
                   </div>
-                ))}
+                ) : (
+                  filteredBins.map(bin => (
+                    <div
+                      key={bin._id}
+                      className="card bin-card"
+                      onClick={() => handleInvestigateBin(bin)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <div className="bin-card-main">
+                        <div className="bin-fullness-visual">
+                          <div className="fullness-bar">
+                            <div
+                              className="fullness-fill"
+                              style={{ width: `${bin.fullness}%` }}
+                            ></div>
+                          </div>
+                          <span className={`status-badge status-${bin.level?.toLowerCase()}`}>
+                            {bin.level}
+                          </span>
+                        </div>
+                        <div className="bin-text">
+                          <div className="bin-name">{bin.name}</div>
+                          <div className="bin-streams">
+                            {bin.streams?.includes('compost') && <span className="stream-chip">🌱</span>}
+                            {bin.streams?.includes('recycle') && <span className="stream-chip">♻️</span>}
+                            {bin.streams?.includes('landfill') && <span className="stream-chip">🗑️</span>}
+                          </div>
+                          {/* UPDATED: Better distance display */}
+                          {bin.distance != null ? (
+                            <div className="bin-distance">
+                              📍 {bin.distance < 1000
+                                ? `${Math.round(bin.distance)}m away`
+                                : `${(bin.distance / 1000).toFixed(1)}km away`
+                              }
+                            </div>
+                          ) : userLocation ? (
+                            <div className="bin-distance" style={{ color: '#9ca3af' }}>
+                              Distance unavailable
+                            </div>
+                          ) : (
+                            <div className="bin-distance" style={{ color: '#9ca3af' }}>
+                              Enable location to see distance
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="bin-nav">
+                        <span className="bin-nav-icon">→</span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -676,7 +820,7 @@ function App() {
               )}
 
               {/* Map Tab */}
-              {adminTab === 'map' && (
+              {currentScreen === 'adminDashboard' && adminTab === 'map' && (
                 <div className="card admin-map-card">
                   <div className="admin-map-controls">
                     <select>
@@ -690,7 +834,16 @@ function App() {
                     </select>
                   </div>
                   <div style={{ marginTop: 12 }}>
-                    <MapView bins={nearbyBins} selectedBin={selectedBin} onSelectBin={(b) => { setSelectedBin(b); handleInvestigateBin(b); }} height={360} />
+                    <MapView
+                      bins={nearbyBins}
+                      selectedBin={selectedBin}
+                      onSelectBin={(b) => {
+                        setSelectedBin(b);
+                        handleInvestigateBin(b);
+                      }}
+                      height={360}
+                      userLocation={userLocation}
+                    />
                   </div>
                   <div className="admin-map-legend map-legend">
                     <span><span className="legend-dot legend-good"></span>Good</span>
@@ -980,7 +1133,12 @@ function App() {
               <div className="card bin-detail-location-card">
                 <div className="map-title">Location</div>
                 <div style={{ width: '100%', height: 240 }}>
-                  <MapView bins={[selectedBin]} selectedBin={selectedBin} height={240} />
+                  <MapView
+                    bins={[selectedBin]}
+                    selectedBin={selectedBin}
+                    height={240}
+                    userLocation={userLocation}
+                  />
                 </div>
               </div>
 
