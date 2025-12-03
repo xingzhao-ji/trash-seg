@@ -813,12 +813,6 @@ function App() {
                   Map
                 </button>
                 <button
-                  className={`tab-button ${adminTab === 'graphs' ? 'active' : ''}`}
-                  onClick={() => setAdminTab('graphs')}
-                >
-                  Graphs/Stats
-                </button>
-                <button
                   className={`tab-button ${adminTab === 'bins' ? 'active' : ''}`}
                   onClick={() => setAdminTab('bins')}
                 >
@@ -1142,15 +1136,11 @@ function App() {
               <button
                 className="link-row back-link"
                 onClick={() => {
-                  if (view === 'admin') {
-                    setCurrentScreen('adminDashboard');
-                    setAdminTab('bins');
-                  } else {
-                    setCurrentScreen('nearbyBins');
-                  }
+                  setCurrentScreen('adminDashboard');
+                  setAdminTab('bins');
                 }}
               >
-                ← Back
+                ← Back to Dashboard
               </button>
 
               <div className="card">
@@ -1182,19 +1172,23 @@ function App() {
                 <div className="map-title">Statistics</div>
                 <div className="bin-detail-stats-grid">
                   <div className="bin-detail-stat-card">
-                    <div className="stat-label">Total scans</div>
-                    <div className="stat-value">{selectedBin.totalScansToday}</div>
-                    <div className="stat-note">Today</div>
+                    <div className="stat-label">Fullness</div>
+                    <div className="stat-value">{selectedBin.fullness}%</div>
+                    <div className="stat-note">Current level</div>
                   </div>
                   <div className="bin-detail-stat-card">
-                    <div className="stat-label">Avg fill at scan</div>
-                    <div className="stat-value">{selectedBin.avgFillLast7Days}%</div>
-                    <div className="stat-note">Last 7 days</div>
+                    <div className="stat-label">Status</div>
+                    <div className="stat-value">{selectedBin.level}</div>
+                    <div className="stat-note">Bin condition</div>
                   </div>
                   <div className="bin-detail-stat-card">
-                    <div className="stat-label">Overflows</div>
-                    <div className="stat-value">{selectedBin.overflowsThisMonth}</div>
-                    <div className="stat-note">This month</div>
+                    <div className="stat-label">Streams</div>
+                    <div className="stat-value">
+                      {selectedBin.streams?.map((stream) => (
+                        <span key={stream} className="chip">{stream}</span>
+                      ))}
+                    </div>
+                    <div className="stat-note">Supported waste types</div>
                   </div>
                 </div>
               </div>
