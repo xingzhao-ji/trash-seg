@@ -107,6 +107,12 @@ Bruin Seg's architecture balances speed, accuracy, and real world constraints th
 - Computer vision model for item recognition via image upload
 - Items are segmented, masked, and labeled (compost, recycling, landfill)
 
+<div style="display:flex; gap:10px;">
+  <img src="student_view.png" width="230"/>
+  <img src="admin_view.png" width="230"/>
+  <img src="ai.png" width="230"/>
+</div>
+
 ### Key Interaction Sequences
 
 **Student Flow: Scanning and Sorting**
