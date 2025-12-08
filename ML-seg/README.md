@@ -27,7 +27,7 @@ the Express server ingests to simulate production segmentation.
 ### 2. Create & activate a virtual environment
 
 ```bash
-cd /Users/yahvingali/trash-seg
+cd /trash-seg
 python3 -m venv .venv
 source .venv/bin/activate   # macOS/Linux
 # On Windows PowerShell: .venv\\Scripts\\Activate.ps1
