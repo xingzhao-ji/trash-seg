@@ -1,4 +1,4 @@
-Please refer to the README files in ML-seg and website for the setup. 
+Please refer to the README files in ML-seg and website for the setup. Code: https://github.com/xingzhao-ji/trash-seg/tree/main
 
 # Zero Waste Bin Monitoring System
 
