@@ -3,3 +3,7 @@
 ML-seg/data/taco/
 MobileSAM/weights/
 
+# Keep local credentials out of every directory
+.env
+.env.*
+!.env.example
