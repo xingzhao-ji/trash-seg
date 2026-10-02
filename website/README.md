@@ -100,9 +100,19 @@ cp .env.example .env
 Edit `.env` and add your MongoDB connection string:
 
 ```
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/zero-waste-bin
-PORT=5000
+MONGODB_URI=mongodb://127.0.0.1:27017/zero-waste-demo
+PORT=5001
+NODE_ENV=development
 ```
+
+Keep `.env` untracked. Production deployments should provide `MONGODB_URI`, `PORT`,
+and `NODE_ENV` through the hosting service's environment settings; the example is
+for a disposable local database only. Existing configured environment variables
+continue to work.
+
+If a real database credential has appeared in Git, its owner must revoke or
+rotate it. Removing the current file does not remove earlier commits, other
+branches, forks or copies. Never put replacement credentials in source control.
 
 #### Install Dependencies & Start Server
 
@@ -116,7 +126,7 @@ The server will:
 1. Connect to MongoDB
 2. Initialize database with minimal setup
 3. Start calculating real-time statistics
-4. Begin listening on port 5000
+4. Begin listening on port 5001
 
 ### 3. Setup Frontend
 
