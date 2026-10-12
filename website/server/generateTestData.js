@@ -139,7 +139,7 @@ async function generateTestData() {
       }
       
       await FullnessReport.create({
-        station: bin._id,
+        bin: bin._id,
         level: selectedLevel,
         createdAt: reportDate,
         reportedBy: `testUser${Math.floor(Math.random() * 20)}`
@@ -151,7 +151,7 @@ async function generateTestData() {
     // Update bin fullness based on most recent reports
     console.log('\nUpdating bin fullness levels...');
     for (const bin of bins) {
-      const latestReport = await FullnessReport.findOne({ station: bin._id })
+      const latestReport = await FullnessReport.findOne(FullnessReport.forBin(bin._id))
         .sort({ createdAt: -1 });
       
       if (latestReport) {

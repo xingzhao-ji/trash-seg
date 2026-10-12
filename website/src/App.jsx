@@ -25,6 +25,10 @@ function App() {
   const [error, setError] = useState(null);
   const [showImpactModal, setShowImpactModal] = useState(false);
   const [selectedFullness, setSelectedFullness] = useState(null);
+  const [reportBinId, setReportBinId] = useState('');
+  const [fullnessError, setFullnessError] = useState('');
+  const [reportingFullness, setReportingFullness] = useState(false);
+  const fullnessRequestRef = useRef(false);
   const [detectedItems, setDetectedItems] = useState([]);
   const [binFilter, setBinFilter] = useState('all');
   const [hideFullBins, setHideFullBins] = useState(false);
@@ -54,6 +58,10 @@ function App() {
   });
   const [newBinError, setNewBinError] = useState('');
   const [newBinLoading, setNewBinLoading] = useState(false);
+
+  // A station describes a location; only an explicitly selected bin can receive a report.
+  const reportBin = nearbyBins.find(bin => bin._id === reportBinId);
+  const homeLocation = reportBin || station;
 
   // Filtered bins based on fullness
   const displayedBins = nearbyBins.filter(bin => {
@@ -349,18 +357,31 @@ function App() {
   function goToReportFullness() {
     setCurrentScreen('reportFullness');
     setSelectedFullness(null);
+    setFullnessError('');
+    setSuccessMessage('');
   }
 
   async function handleSubmitFullness() {
-    if (!selectedFullness || !station) return;
+    if (!selectedFullness || !reportBin || fullnessRequestRef.current) return;
+
+    fullnessRequestRef.current = true;
+    setReportingFullness(true);
+    setFullnessError('');
 
     try {
-      await api.reportBinFullness(station._id, selectedFullness);
-      setSuccessMessage('Thanks for reporting bin status!');
+      const result = await api.reportBinFullness(reportBin._id, selectedFullness);
+      setNearbyBins(bins => bins.map(bin =>
+        bin._id === result.bin._id ? { ...bin, ...result.bin } : bin
+      ));
+      setSelectedBin(bin => bin?._id === result.bin._id ? { ...bin, ...result.bin } : bin);
       goToStudentHome();
+      setSuccessMessage(`Thanks! ${reportBin.name} was reported as ${selectedFullness}.`);
     } catch (err) {
       console.error('Error reporting fullness:', err);
-      setError('Failed to report bin fullness.');
+      setFullnessError(`Could not save your report: ${err.message || 'Please try again.'}`);
+    } finally {
+      fullnessRequestRef.current = false;
+      setReportingFullness(false);
     }
   }
 
@@ -428,15 +449,8 @@ function App() {
   }
 
   function handleUseBin(bin) {
-    console.log('Using bin:', bin);
-    // Replace station details with the selected bin's details
-    setStation({
-      ...station,
-      _id: bin._id,
-      name: bin.name,
-      description: bin.description,
-      qrCode: bin.qrCode,
-    });
+    setReportBinId(bin._id);
+    setSuccessMessage('');
     setCurrentScreen('studentHome'); // Navigate back to the student home screen
   }
 
@@ -584,7 +598,7 @@ function App() {
           {currentScreen === 'studentHome' && (
             <div className="screen centered-screen">
               {successMessage && (
-                <div className="toast success-toast">{successMessage}</div>
+                <div className="toast success-toast" role="status">{successMessage}</div>
               )}
 
               <div className="card station-card">
@@ -594,11 +608,11 @@ function App() {
                   <span>🌱</span>
                 </div>
                 <div className="station-text">
-                  <div className="station-name">{station?.name || 'Loading Station...'}</div>
+                  <div className="station-name">{homeLocation?.name || 'Loading Station...'}</div>
                   <div className="station-description">
-                    {station?.description || 'Compost / Recycle / Landfill station'}
+                    {homeLocation?.description || 'Compost / Recycle / Landfill station'}
                   </div>
-                  <div className="station-qr">QR: {station?.qrCode || 'N/A'}</div>
+                  <div className="station-qr">QR: {homeLocation?.qrCode || 'N/A'}</div>
                 </div>
               </div>
 
@@ -821,25 +835,54 @@ function App() {
                 <div className="screen-subtitle">Help us know when to empty bins</div>
               </div>
 
+              <div className="form-field">
+                <label htmlFor="fullness-bin">Bin to report</label>
+                <select
+                  id="fullness-bin"
+                  value={reportBin?._id || ''}
+                  onChange={event => {
+                    setReportBinId(event.target.value);
+                    setFullnessError('');
+                  }}
+                  disabled={reportingFullness}
+                  aria-describedby="fullness-bin-hint"
+                >
+                  <option value="">Choose a bin</option>
+                  {nearbyBins.map(bin => (
+                    <option key={bin._id} value={bin._id}>
+                      {bin.name}{bin.qrCode ? ` — ${bin.qrCode}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div id="fullness-bin-hint" className="field-hint">
+                  {nearbyBins.length ? 'Choose the bin you are checking.' : 'No bins are available. Reload nearby bins before reporting.'}
+                </div>
+              </div>
+
               <div className="fullness-grid">
                 {['Empty', '1/4 Full', 'Half Full', '3/4 Full', 'Full', 'Overflowing'].map(level => (
-                  <div
+                  <button
+                    type="button"
                     key={level}
                     className={`fullness-card ${selectedFullness === level ? 'selected' : ''}`}
                     onClick={() => setSelectedFullness(level)}
+                    aria-pressed={selectedFullness === level}
+                    disabled={reportingFullness}
                   >
                     <div className="fullness-bin-visual"></div>
                     <div className="fullness-label">{level}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
+
+              {fullnessError && <div className="error-text form-error" role="alert">{fullnessError}</div>}
 
               <button
                 className="primary-btn big-btn"
                 onClick={handleSubmitFullness}
-                disabled={!selectedFullness}
+                disabled={!reportBin || !selectedFullness || reportingFullness}
               >
-                Submit
+                {reportingFullness ? 'Saving…' : 'Submit'}
               </button>
             </div>
           )}

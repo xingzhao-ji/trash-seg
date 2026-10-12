@@ -14,7 +14,7 @@ The project was evaluated with a small group under controlled conditions. A camp
 - **Data tools:** a sample bin-location import, report generation, and MongoDB models for bins, stations, fullness reports, and impact counters.
 - **ML experiments:** a separate YOLO image-preview harness and the SAM + Trash-Net pipeline used by the web API.
 
-Some flows have known defects in this snapshot, including fullness reporting. See the [web app limitations](website/README.md#known-limitations) before treating the prototype as an operational system.
+Fullness reporting requires an explicit bin selection and saves the report and updated bin status in MongoDB. See the [web app limitations](website/README.md#known-limitations) before treating the prototype as an operational system.
 
 ## Architecture
 
@@ -53,7 +53,7 @@ Browsing bins and using the sample sorting-results UI do not require Python infe
 
 ## Validation and project status
 
-Neither Node package defines an automated test script. The [web README](website/README.md#validation) gives the build and local smoke-check commands, and the [ML README](ML-seg/README.md#validation-and-limits) explains how to exercise the image scripts.
+The web app has a Playwright regression suite for bin selection, fullness-report persistence, visible save errors, and API validation. It runs the actual React/Express app against a disposable local MongoDB with synthetic records. The [web README](website/README.md#validation) gives prerequisites, test commands, and the scope of verification; the [ML README](ML-seg/README.md#validation-and-limits) explains how to exercise the image scripts.
 
 The historical evaluation covers usability, not a measured campus-wide reduction in contamination or a systematic model-accuracy benchmark. The current code also uses a shared demo impact record, has no admin authentication boundary, and contains manually selectable example results. Those examples are distinct from model output.
 

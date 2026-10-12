@@ -478,6 +478,8 @@ body {
 }
 
 .fullness-card {
+  font: inherit;
+  color: inherit;
   border-radius: var(--card-radius);
   border: 2px solid var(--border-subtle);
   padding: 16px;
@@ -1197,6 +1199,7 @@ body {
 }
 
 .form-field input,
+.form-field select,
 .form-field textarea {
   border-radius: 999px;
   border: 1px solid var(--border-subtle);
@@ -1220,6 +1223,7 @@ body {
 }
 
 .form-field input:focus,
+.form-field select:focus,
 .form-field textarea:focus {
   border-color: var(--primary-strong);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);

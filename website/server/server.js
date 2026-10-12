@@ -502,50 +502,57 @@ app.post('/api/segment', async (req, res) => {
 // Report bin fullness
 app.post('/api/bins/report-fullness', async (req, res) => {
   try {
-    const { binId, level } = req.body;
+    const { binId, level } = req.body || {};
 
     if (!binId || !level) {
       return res.status(400).json({ message: 'Bin ID and fullness level are required' });
     }
 
-    const bin = await Bin.findById(binId);
-    if (!bin) {
+    if (typeof binId !== 'string' || !mongoose.isObjectIdOrHexString(binId)) {
+      return res.status(400).json({ message: 'Invalid bin ID' });
+    }
+
+    const levels = new Map([
+      ['Empty', { fullness: 0, level: 'Good' }],
+      ['1/4 Full', { fullness: 25, level: 'Good' }],
+      ['Half Full', { fullness: 50, level: 'Good' }],
+      ['3/4 Full', { fullness: 75, level: 'Warning' }],
+      ['Full', { fullness: 90, level: 'Critical' }],
+      ['Overflowing', { fullness: 100, level: 'Critical' }]
+    ]);
+    if (!levels.has(level)) {
+      return res.status(400).json({ message: 'Invalid fullness level' });
+    }
+
+    const binQuery = { _id: binId, active: true };
+    if (!await Bin.exists(binQuery)) {
       return res.status(404).json({ message: 'Bin not found' });
     }
 
-    // Update bin fullness
-    if (binId) {
-      const fullnessMap = {
-        'Empty': 0,
-        '1/4 Full': 25,
-        'Half Full': 50,
-        '3/4 Full': 75,
-        'Full': 90,
-        'Overflowing': 100
-      };
-
-      const levelMap = {
-        'Empty': 'Good',
-        '1/4 Full': 'Good',
-        'Half Full': 'Good',
-        '3/4 Full': 'Warning',
-        'Full': 'Critical',
-        'Overflowing': 'Critical'
-      };
-
-      await Bin.findByIdAndUpdate(binId, {
-        fullness: fullnessMap[level],
-        level: levelMap[level],
-        lastReported: new Date()
-      });
+    // Save the report before changing the bin. Compensate if the bin update fails;
+    // this also works with the standalone MongoDB used for local development.
+    const report = await FullnessReport.create({ bin: binId, level });
+    let bin;
+    try {
+      bin = await Bin.findOneAndUpdate(binQuery, {
+        $set: { ...levels.get(level), lastReported: report.createdAt },
+        $push: { fullnessHistory: { fullness: levels.get(level).fullness, timestamp: report.createdAt } }
+      }, { new: true, runValidators: true });
+    } catch (error) {
+      await FullnessReport.deleteOne({ _id: report._id });
+      throw error;
+    }
+    if (!bin) {
+      await FullnessReport.deleteOne({ _id: report._id });
+      return res.status(404).json({ message: 'Bin not found' });
     }
 
-    // Update statistics
     await updateBinStatistics();
 
-    res.json({
+    res.status(201).json({
       ok: true,
       id: report._id.toString(),
+      bin,
       message: 'Fullness report submitted successfully'
     });
   } catch (err) {
@@ -637,17 +644,17 @@ app.get('/api/bins/:id/stats', async (req, res) => {
 
     // Get reports for this specific bin
     const todayReports = await FullnessReport.countDocuments({
-      station: bin._id,
+      ...FullnessReport.forBin(bin._id),
       createdAt: { $gte: todayStart }
     });
 
     const weekReports = await FullnessReport.find({
-      station: bin._id,
+      ...FullnessReport.forBin(bin._id),
       createdAt: { $gte: weekAgo }
     });
 
     const overflowReports = await FullnessReport.countDocuments({
-      station: bin._id,
+      ...FullnessReport.forBin(bin._id),
       level: 'Overflowing',
       createdAt: { $gte: monthAgo }
     });

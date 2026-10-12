@@ -131,12 +131,12 @@ class FacilitiesIntegration {
 
       // Get reports for this bin
       const weekReports = await FullnessReport.find({
-        station: binId,
+        ...FullnessReport.forBin(binId),
         createdAt: { $gte: weekAgo }
       });
 
       const monthOverflows = await FullnessReport.countDocuments({
-        station: binId,
+        ...FullnessReport.forBin(binId),
         level: 'Overflowing',
         createdAt: { $gte: monthAgo }
       });
@@ -226,7 +226,7 @@ class FacilitiesIntegration {
         },
         {
           $group: {
-            _id: '$station',
+            _id: { $ifNull: ['$bin', '$station'] },
             totalReports: { $sum: 1 },
             overflowCount: {
               $sum: { $cond: [{ $eq: ['$level', 'Overflowing'] }, 1, 0] }

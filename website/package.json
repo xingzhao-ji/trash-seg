@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "playwright test",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
@@ -16,6 +17,7 @@
     "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.0.8"
   }

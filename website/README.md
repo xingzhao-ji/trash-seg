@@ -21,7 +21,7 @@ For the project evaluation and team credits, see the [repository README](../READ
 
 ### Requirements
 
-- Node.js and npm compatible with the locked Vite 5/React 18 frontend and Express 4/Mongoose 8 server.
+- Node.js 20 or newer and npm for the locked app dependencies and Playwright tests.
 - A development MongoDB instance, local or under your control.
 - A browser with location and camera permissions for those features. Mobile camera access normally needs HTTPS; localhost is suitable for desktop development.
 - Python and the [ML dependencies](../ML-seg/README.md) only for real segmentation.
@@ -105,7 +105,7 @@ The shared helper normally times out after **10 seconds**, uses **5 seconds** fo
 | `GET /api/bins/nearby` | Active bins; optional latitude, longitude, and radius in meters |
 | `GET /api/bins/:id/stats` | Per-bin statistics |
 | `POST /api/bin` | Create a bin |
-| `POST /api/bins/report-fullness` | Fullness flow; see the known defect below |
+| `POST /api/bins/report-fullness` | Save a fullness report for an explicitly selected active bin |
 | `GET /api/admin/overview`, `GET /api/admin/problem-bins` | Dashboard data |
 | `GET /api/student/impact`, `POST /api/student/impact` | Shared demo impact counters |
 | `POST /api/segment` | SAM + Trash-Net inference |
@@ -114,6 +114,14 @@ The shared helper normally times out after **10 seconds**, uses **5 seconds** fo
 | `GET /api/facilities/report` | Report over a date range |
 
 These routes are implemented in [server/server.js](server/server.js). The `admin` and `facilities` route names do not provide authentication or authorization.
+
+### Fullness reporting
+
+From **Student View → Report bin fullness**, choose a bin and a fullness level, then submit. **Use This Bin** in the nearby list preselects that bin; you can change it in the report form. A fresh visit does not select the first bin automatically. The current station and a bin are separate records, so neither a station ID nor a QR code is substituted for a bin ID.
+
+The request body is `{ "binId": "<selected Bin._id>", "level": "3/4 Full" }`. Accepted levels are `Empty`, `1/4 Full`, `Half Full`, `3/4 Full`, `Full`, and `Overflowing`, mapped to 0, 25, 50, 75, 90, and 100 percent. A successful request returns **201** with the report `id` and updated `bin`, saves a `FullnessReport.bin` reference, and updates the bin's fullness, status, history, and last-report time. Invalid input returns **400**; a missing or inactive bin returns **404**. Failed requests leave the form open with a visible error and preserve the selection for retry.
+
+Statistics read new `bin` references and retain compatibility with historical reports that stored a bin ID in `station`. No automatic station-to-bin mapping or database migration is performed.
 
 ## Validation
 
@@ -141,13 +149,30 @@ curl -i 'http://localhost:5001/api/bins/nearby?latitude=100&longitude=0'
 
 The second request should return HTTP **400** for an invalid latitude. Review bin browsing, filters, detail views, camera permission handling, example-result labeling, and the admin overview in the browser. A successful frontend build alone does not validate these interactions.
 
-Neither `package.json` defines `npm test`. `server/checkSetup.js` attempts a database connection, and `server/generateTestData.js` mutates data; they are utilities, not an isolated automated test suite.
+### Fullness regression suite
 
-During the README review on **2026-10-12**, `npm ci --ignore-scripts --no-audit --no-fund` and `VITE_API_BASE_URL=http://localhost:5001 npm run build` passed with Node.js 26.7.0 and Vite 5.4.21. All 11 server JavaScript files passed `node --check`, and all three ML Python files parsed with `ast.parse`. A Vite proxy probe successfully reached a disposable local HTTP server on port 5001. The application backend, MongoDB integration, browser interaction, data import, and model inference were **not run**. The proxy probe, build, and syntax checks do not establish that those flows pass.
+Install MongoDB Community Server so `mongod` is on PATH, or set `MONGOD_BINARY` to its executable. With both Node packages installed, run from `website`:
+
+```bash
+npx playwright install chromium
+npm test
+```
+
+Alternatively, use an existing Chrome executable instead of downloading Playwright's browser. This is the command used on the review machine:
+
+```bash
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test
+```
+
+The suite starts its own MongoDB in a temporary directory, launches the real Express API and Vite on available local ports, and seeds a station plus two distinct bins. It does not use your `MONGODB_URI`, load the server's `.env`, invoke inference, or contact a hosted database. The processes and temporary database are removed afterward. Screenshots and persistence evidence are written to ignored `test-results/` directories.
+
+The ten tests cover explicit selection of the second bin, **Use This Bin**, confirmation and persistence after reload, a real 404 with visible error and retry, duplicate-click protection, an empty bin list, invalid requests, all six levels, failed database writes, and compatibility with historical report statistics. `server/checkSetup.js` and `server/generateTestData.js` remain separate utilities that connect to or mutate whichever database you configure; they are not part of this isolated suite.
+
+Verified on **2026-10-12** with Node.js 26.7.0, MongoDB 7.0.20, Playwright 1.64.0, and local Chrome: all **10 regression tests passed**, `npm run build` passed with Vite 5.4.21, and the changed server files passed `node --check`. The browser submitted a selected bin ID, the API returned 201, MongoDB contained the report and 75% bin state, and the detail screen still showed 75% after reload. Model inference, camera hardware, real facilities imports, and a campus deployment were **not tested** by this suite.
 
 ## Known limitations
 
-- **Fullness reporting needs repair.** The frontend submits the current station ID to a route that looks up a bin ID. The route then refers to an undefined `report` when building its response and does not create a `FullnessReport` document. A valid bin can be updated before the response fails. Do not interpret this flow as verified end-to-end reporting.
+- **Write recovery:** fullness reports and bin updates are separate writes so local standalone MongoDB is supported. A rejected bin update removes the newly inserted report; an abrupt process or database failure between writes is not covered by a transaction. The UI prevents duplicate clicks during a pending request, but retries after a lost response are not idempotent.
 - **Demo identity and permissions:** impact is stored under one `demoStudent` record, and the API has no authentication middleware for admin or facilities writes. Use only a development environment with synthetic data.
 - **Metrics need context:** “Scans Today” counts fullness-report records, not camera inference requests. Some fallback problem-bin metrics are placeholders. Sorting results update impact only when the user completes the sorting flow.
 - **Model scope:** the current classifier mapping covers recycling and landfill labels, with no compost class mapping. The UI's compost example is sample data.
