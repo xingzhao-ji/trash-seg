@@ -26,7 +26,8 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '25mb' }));
+if (process.env.PUBLIC_DEMO === '1') app.use(require('./deployment/public-demo'));
+app.use(express.json({ limit: process.env.PUBLIC_DEMO === '1' ? '64kb' : '25mb' }));
 
 // Configuration
 const PORT = process.env.PORT || 5001;
@@ -283,8 +284,9 @@ async function runSamTrashnetFusion(imageBase64, points = []) {
 
 // Health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  const connected = mongoose.connection.readyState === 1;
+  res.status(connected ? 200 : 503).json({
+    status: connected ? 'ok' : 'error',
     timestamp: new Date().toISOString(),
     mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
@@ -774,6 +776,12 @@ app.use('/api/*', (req, res) => {
 });
 
 // Error handling middleware
+if (process.env.NODE_ENV === 'production') {
+  const frontend = path.resolve(__dirname, '..', 'dist');
+  app.use(express.static(frontend));
+  app.get('*', (req, res) => res.sendFile(path.join(frontend, 'index.html')));
+}
+
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ message: 'Internal server error' });

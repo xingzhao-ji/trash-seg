@@ -1,0 +1,35 @@
+name: zero-waste-demo
+services:
+  mongo:
+    image: mongo:7.0
+    command: ["mongod", "--bind_ip_all", "--nounixsocket"]
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ping: 1}).ok ? 0 : 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  app:
+    build:
+      context: ../../website
+      dockerfile: ../deploy/zero-waste/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/zero_waste_demo
+      PORT: "8080"
+      PUBLIC_DEMO: "1"
+      SEED_DEMO: "1"
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+volumes:
+  mongo-data:
