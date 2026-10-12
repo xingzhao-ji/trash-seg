@@ -6,6 +6,14 @@ The project was evaluated with a small group under controlled conditions. A camp
 
 [Web app setup](website/README.md) · [Segmentation setup](ML-seg/README.md) · [Project poster](Poster.png)
 
+## Recorded demo
+
+[Watch or download the demo](docs/demos/ZeroWaste-fixed-success-walkthrough.mp4) — **12.2 seconds, silent**. Recorded on 2026-10-12 from the React/Express app connected to local MongoDB with synthetic data. It shows an explicit bin selection, a successful fullness report, and **75% / Warning** after reloading. This is a recorded local demonstration, not a live hosted deployment; segmentation inference is outside this clip.
+
+[Screenshots and recording details](docs/demos/README.md) · [Separate 15-minute technical walkthrough runbook](docs/demos/ZeroWaste-demo-runbook-fixed.md)
+
+[![Saved fullness report for the selected Powell Library sample bin](docs/demos/02-report-saved-confirmation.png)](docs/demos/ZeroWaste-fixed-success-walkthrough.mp4)
+
 ## What is in the repository
 
 - **Student interface:** browse and filter nearby bins, inspect details, view bins on a map, and submit fullness reports.

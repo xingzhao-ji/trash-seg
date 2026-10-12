@@ -4,6 +4,8 @@ The web app provides student bin browsing, map and detail views, a fullness-repo
 
 For the project evaluation and team credits, see the [repository README](../README.md).
 
+See the [12.2-second silent recorded demo and screenshots](../docs/demos/README.md) for bin selection, a saved fullness report, and persistence after reload using synthetic data in local MongoDB. A [separate 15-minute runbook](../docs/demos/ZeroWaste-demo-runbook-fixed.md) covers the technical walkthrough. These assets show a local demonstration, not a live hosted deployment.
+
 ## Code layout
 
 | Path | Purpose |
