@@ -6,6 +6,12 @@ The project was evaluated with a small group under controlled conditions. A camp
 
 [Web app setup](website/README.md) · [Segmentation setup](ML-seg/README.md) · [Project poster](Poster.png)
 
+## Runnable demo implementation
+
+[Run the original React / Express / MongoDB demo](deploy/zero-waste/README.md) · [Docker Compose configuration](deploy/zero-waste/compose.yaml) · [Bounded demo backend](website/server/deployment)
+
+The implementation seeds an isolated synthetic database, saves selected-bin reports through the real API, and preserves them in a named MongoDB volume. Administrative and model actions are blocked in demo mode. Local browser and database checks passed; no public backend URL or verified container deployment is claimed.
+
 ## Recorded demo
 
 [Watch or download the demo](docs/demos/ZeroWaste-fixed-success-walkthrough.mp4) — **12.2 seconds, silent**. Recorded on 2026-10-12 from the React/Express app connected to local MongoDB with synthetic data. It shows an explicit bin selection, a successful fullness report, and **75% / Warning** after reloading. This is a recorded local demonstration, not a live hosted deployment; segmentation inference is outside this clip.
