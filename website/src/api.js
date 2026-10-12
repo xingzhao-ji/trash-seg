@@ -1,5 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
-  (window.location.hostname === 'localhost' ? 'http://localhost:5001' : '');
+  (import.meta.env.DEV && window.location.hostname === 'localhost' ? 'http://localhost:5001' : '');
 
 async function handleResponse(response) {
   if (!response.ok) {
