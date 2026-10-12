@@ -126,7 +126,7 @@ function App() {
       console.log('API health check:', health);
 
       if (health.status === 'error') {
-        throw new Error(`Cannot connect to server at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}. Make sure the backend is running.`);
+        throw new Error(`Cannot connect to server at ${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001'}. Make sure the backend is running.`);
       }
 
 

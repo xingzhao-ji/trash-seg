@@ -1,305 +1,157 @@
-# Zero Waste Bin Monitoring System
+# Zero Waste web app
 
-A full-stack web application for trash sorting and bin monitoring, optimized for mobile devices and integrated with UCLA Facilities Management.
+The web app provides student bin browsing, map and detail views, a fullness-reporting flow, image-based sorting, and an admin overview. It is a prototype backed by Express and MongoDB. The facilities import and reporting code supports experimentation with bin data; it does not establish a live UCLA Facilities integration.
 
-## Tech Stack
+For the project evaluation and team credits, see the [repository README](../README.md).
 
-- **Frontend**: React 18, Vite, CSS Modules
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB with Mongoose ODM
-- **AI Integration**: Ready for Hugging Face integration (Python)
-- **Development Tools**: GitHub, Claude/Gemini/ChatGPT for AI assistance
+## Code layout
 
-## Features
+| Path | Purpose |
+| --- | --- |
+| [src/App.jsx](src/App.jsx) | Student and admin screens and their state |
+| [src/api.js](src/api.js) | API-origin configuration, response errors, and request timeouts |
+| [src/CameraCapture.jsx](src/CameraCapture.jsx) | Browser camera capture |
+| [src/MapView.jsx](src/MapView.jsx) | Leaflet bin map |
+| [server/server.js](server/server.js) | Express routes and Python subprocess integration |
+| [server/models](server/models) | Station, bin, report, impact, and dashboard schemas |
+| [server/services/facilitiesIntegration.js](server/services/facilitiesIntegration.js) | Bin imports, distance calculations, and reports |
+| [server/ucla_bins_sample.json](server/ucla_bins_sample.json) | Ten sample bin locations |
 
-### Student View
+## Local setup
 
-- **Smart Item Sorting**: Camera-based item detection with AI segmentation
-- **Bin Fullness Reporting**: Real-time bin status reporting
-- **Nearby Bins**: GPS-based bin discovery with live status
-- **Personal Impact Tracking**: Track environmental impact
+### Requirements
 
-### Admin View
+- Node.js and npm compatible with the locked Vite 5/React 18 frontend and Express 4/Mongoose 8 server.
+- A development MongoDB instance, local or under your control.
+- A browser with location and camera permissions for those features. Mobile camera access normally needs HTTPS; localhost is suitable for desktop development.
+- Python and the [ML dependencies](../ML-seg/README.md) only for real segmentation.
 
-- **Real-time Dashboard**: Live statistics calculated from actual data
-- **Problem Bin Detection**: Automatic identification of problematic bins
-- **Visual Analytics**: Maps and trend analysis
-- **Detailed Investigation**: Drill-down into specific bin performance
+Use a disposable database and your own configuration. The commands below pass an explicit local MongoDB URI. Alternatively, copy `server/.env.example` to an ignored `server/.env` and configure it locally; the example contains only a local URI without credentials. Preserve an existing local `.env` rather than overwriting it. Never reuse credentials from older commits.
 
-### UCLA Facilities Integration
+### 1. Start the API
 
-- **Automated Data Sync**: Import bin locations from facilities management
-- **Facility Reports**: Generate reports for UCLA management
-- **GPS Integration**: Location-based bin discovery
-
-## Segmentation Pipeline
-
--**Capture & upload**: The mobile-first UI captures an image and posts it to `/api/segment`. In development this endpoint shells out to the Python helpers in `ML-seg/` to emulate the production AI service.
-
--**YOLOv8n-seg preview**: `ML-seg/run_image_seg.py` runs the lightweight `yolov8n-seg.pt` checkpoint to render instant landfill/recycle/compost masks so students get immediate feedback.
-
--**SAM 2.1 mask proposal**: The backend invokes  `ML-seg/run_sam_maskrcnn_fusion.py`, which drives Hugging Face’s `facebook/sam2.1-hiera-tiny` pipeline. Optional ROI clicks from the UI steer which masks survive the area/score filters.
-
--**Trash-Net stream labels**: Each SAM crop is classified with the SIGLIP model `prithivMLmods/Trash-Net`; labels such as `cardboard` or `plastic` map into the streams tracked by student impact stats.
-
--**Downstream usage**: The fusion helper emits an overlay plus JSON metadata that the Express server ingests to update student impact metrics, flag problem bins, and show context in the admin dashboard.
-
-## Project Structure
-
-```
-├── src/                    # Frontend React application
-│   ├── App.jsx            # Main React component
-│   ├── api.js             # API wrapper
-│   ├── main.jsx           # React entry point
-│   └── styles.css         # Mobile-first styles
-├── server/                # Backend Node.js application
-│   ├── models/            # MongoDB/Mongoose models
-│   │   ├── Station.js
-│   │   ├── Bin.js        # Enhanced with GPS and facilities data
-│   │   ├── OverviewStat.js
-│   │   ├── ProblemBin.js
-│   │   ├── FullnessReport.js
-│   │   └── StudentImpact.js
-│   ├── services/          # Business logic
-│   │   └── facilitiesIntegration.js  # UCLA facilities sync
-│   ├── server.js          # Express server with API routes
-│   ├── importFacilityData.js  # CLI tool for data import
-│   ├── ucla_bins_sample.json  # Sample facility data
-│   ├── package.json     
-│   └── .env.example     
-├── index.html           
-├── package.json         
-├── vite.config.js       
-└── README.md           
-```
-
-## Installation & Setup
-
-### Prerequisites
-
-- Node.js (v16 or higher)
-- MongoDB (local or MongoDB Atlas)
-- npm or yarn
-
-### 1. Clone the Repository
+From the repository root, with MongoDB already running:
 
 ```bash
-git clone <your-repo-url>
-cd zero-waste-bin-system
+cd website/server
+npm ci
+MONGODB_URI=mongodb://127.0.0.1:27017/zero_waste_dev PORT=5001 npm start
 ```
 
-### 2. Setup Backend
+For automatic server reloads, use the same environment variables with `npm run dev`.
 
-#### Configure MongoDB
+The server connects before listening. On startup it creates a default station if needed and updates overview statistics, then repeats the statistics update every five minutes. A fresh database has no bin locations until you import or create them.
+
+Check the API from another terminal:
 
 ```bash
-cd server
-cp .env.example .env
+curl --fail http://localhost:5001/api/health
 ```
 
-Edit `.env` and add your MongoDB connection string:
+A running server reports `status: "ok"` and `mongodb: "connected"`.
 
-```
-MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/zero-waste-bin
-PORT=5000
-```
+### 2. Import sample bins
 
-#### Install Dependencies & Start Server
+This writes ten sample locations to the development database and creates an import-report JSON file in the current directory. From `website/server`:
 
 ```bash
-npm install
-npm start
+MONGODB_URI=mongodb://127.0.0.1:27017/zero_waste_dev \
+  node importFacilityData.js ucla_bins_sample.json
 ```
 
-The server will:
+The importer accepts JSON shaped as `{ "bins": [...] }`. See the [sample file](server/ucla_bins_sample.json) for fields such as `facilityId`, `name`, latitude/longitude, and supported streams. These are sample records, not evidence of an official facilities data feed.
 
-1. Connect to MongoDB
-2. Initialize database with minimal setup
-3. Start calculating real-time statistics
-4. Begin listening on port 5000
+### 3. Start the frontend
 
-### 3. Setup Frontend
-
-In a new terminal:
+From the repository root in a separate terminal:
 
 ```bash
-# From project root
-npm install
-npm run dev
+cd website
+npm ci
+VITE_API_BASE_URL=http://localhost:5001 npm run dev
 ```
 
-The app will open at http://localhost:3000
+Vite requests port **3000** and opens the browser. Check its terminal output in case that port is occupied.
 
-## UCLA Facilities Integration
+Set `VITE_API_BASE_URL` to the API **origin**, without an `/api` suffix: the helper adds endpoint paths itself. Restart Vite after changing its environment.
 
-### Importing Bin Location Data
+The API, localhost helper, and Vite `/api` proxy all default to **5001**. If you choose a different backend port, update the frontend origin too; if relying on the relative `/api` proxy, update its target in `vite.config.js`. On a phone, use the development computer's reachable address for both services; `localhost` on the phone points to the phone.
 
-Use the provided import script to load bin data from UCLA Facilities:
+### 4. Enable real segmentation, if needed
 
-```bash
-cd server
-node importFacilityData.js ucla_bins_sample.json
-```
+Set up the Python environment from [ML-seg/README.md](../ML-seg/README.md). The server looks for `.venv/bin/python3` at the repository root, then falls back to `python3` on PATH. Set `SAM_TRASHNET_PYTHON` to another interpreter's absolute path when needed; this also supports a Windows virtual environment.
 
-Expected JSON format:
+`POST /api/segment` accepts `imageBase64` and optional normalized `points`, runs `ML-seg/run_sam_maskrcnn_fusion.py`, and returns an overlay and mask metadata. Images and outputs are written to a temporary directory and removed after the request.
 
-```json
-{
-  "bins": [
-    {
-      "facilityId": "UCLA-BIN-001",
-      "name": "Ackerman Union — Food Court",
-      "building": "Ackerman Union",
-      "floor": "Level 1",
-      "latitude": 34.070266,
-      "longitude": -118.444183,
-      "streams": ["compost", "recycle", "landfill"],
-      "capacity": 50,
-      "type": "standard"
-    }
-  ]
-}
-```
+The UI's **Use example results** action supplies fixed sample items. It lets you inspect the sorting flow without inference and is labeled as example data. The separate YOLO preview script is not called by this API route.
 
-### API Endpoints for Facilities
+## Configuration
 
-#### Update Bin Locations
+| Variable | Where it is read | Meaning |
+| --- | --- | --- |
+| `MONGODB_URI` | API and import tools | Required database URI |
+| `PORT` | API | Defaults to `5001` |
+| `SAM_TRASHNET_PYTHON` | API | Optional Python interpreter override |
+| `VITE_API_BASE_URL` | Frontend | API origin, embedded at dev-server start/build time |
 
-```bash
-POST /api/facilities/update-bins
-Content-Type: application/json
+The shared helper normally times out after **10 seconds**, uses **5 seconds** for its connection check, and allows **120 seconds** for segmentation. The server's Python subprocess has no corresponding timeout, so a timed-out browser request does not establish that inference has stopped.
 
-{
-  "bins": [...]
-}
-```
+## Main API routes
 
-#### Sync Contamination Data
+| Method and path | Use |
+| --- | --- |
+| `GET /api/health` | Server and database status |
+| `GET /api/station/current` | Current station |
+| `GET /api/bins/nearby` | Active bins; optional latitude, longitude, and radius in meters |
+| `GET /api/bins/:id/stats` | Per-bin statistics |
+| `POST /api/bin` | Create a bin |
+| `POST /api/bins/report-fullness` | Fullness flow; see the known defect below |
+| `GET /api/admin/overview`, `GET /api/admin/problem-bins` | Dashboard data |
+| `GET /api/student/impact`, `POST /api/student/impact` | Shared demo impact counters |
+| `POST /api/segment` | SAM + Trash-Net inference |
+| `POST /api/facilities/update-bins` | Bulk bin import |
+| `POST /api/facilities/sync-contamination` | Import contamination values |
+| `GET /api/facilities/report` | Report over a date range |
 
-```bash
-POST /api/facilities/sync-contamination
-Content-Type: application/json
+These routes are implemented in [server/server.js](server/server.js). The `admin` and `facilities` route names do not provide authentication or authorization.
 
-{
-  "contaminationData": [
-    {
-      "facilityId": "UCLA-BIN-001",
-      "contaminationRate": 8.5
-    }
-  ]
-}
-```
+## Validation
 
-#### Get Facility Report
-
-```bash
-GET /api/facilities/report?startDate=2024-01-01&endDate=2024-01-31
-```
-
-## API Reference
-
-### Public Endpoints
-
-- `GET /api/health` - System health check
-- `GET /api/station/current` - Current station info
-- `GET /api/bins/nearby` - Nearby bins with GPS distance
-- `GET /api/bins/:id/stats` - Real-time bin statistics
-
-### Student Actions
-
-- `POST /api/segment` - AI segmentation (mock data currently)
-- `POST /api/bins/report-fullness` - Report bin status
-- `POST /api/student/impact` - Update environmental impact
-
-### Admin Endpoints
-
-- `GET /api/admin/overview` - Real-time dashboard stats
-- `GET /api/admin/problem-bins` - Bins requiring attention
-
-### Facilities Management
-
-- `POST /api/facilities/update-bins` - Bulk update bin locations
-- `POST /api/facilities/sync-contamination` - Update contamination data
-- `GET /api/facilities/report` - Generate management reports
-
-## Real-time Features
-
-The system now provides:
-
-- **Live Statistics**: Calculated from actual database records
-- **Automatic Updates**: Stats refresh every 5 minutes
-- **Dynamic Problem Detection**: Based on fullness and contamination thresholds
-- **GPS-based Discovery**: Find bins based on actual coordinates
-
-## Development
-
-### Running in Development
-
-```bash
-# Backend with auto-reload
-cd server && npm run dev
-
-# Frontend with hot-reload
-npm run dev
-```
-
-### Adding Real AI Integration
-
-To integrate actual AI segmentation:
-
-1. Create Python service:
-
-```python
-# server/services/segmentation.py
-from transformers import pipeline
-# Your Hugging Face model here
-```
-
-2. Update `/api/segment` endpoint to call Python service
-
-### Database Management
-
-The system now uses real data:
-
-- Statistics are calculated from actual reports
-- Problem bins are identified automatically
-- No more placeholder data needed
-
-To reset the database:
-
-```bash
-# In MongoDB shell or Atlas
-use zero-waste-bin
-db.dropDatabase()
-```
-
-## Production Deployment
-
-1. Set environment variables:
-
-   - `MONGODB_URI` - Production database
-   - `NODE_ENV=production`
-   - `PORT` - Server port
-2. Build frontend:
+From `website`, build the frontend:
 
 ```bash
 npm run build
 ```
 
-3. Deploy to your hosting service (Heroku, AWS, etc.)
+This creates `dist/`. For a build configured to use the local API, set `VITE_API_BASE_URL=http://localhost:5001` on the build command. To inspect that build, run `npm run preview`; the API must still run separately. Vite's preview server is a local inspection tool, not the backend.
 
-## Contributing
+Without starting MongoDB or Python, parse the server files:
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+```bash
+# From the repository root
+find website/server -path '*/node_modules' -prune -o -name '*.js' -exec node --check {} \;
+```
 
-## License
+With the API configured against a disposable database, these requests exercise a read and an invalid-input path:
 
-MIT License - See LICENSE file for details
+```bash
+curl --fail http://localhost:5001/api/bins/nearby
+curl -i 'http://localhost:5001/api/bins/nearby?latitude=100&longitude=0'
+```
 
-## Support
+The second request should return HTTP **400** for an invalid latitude. Review bin browsing, filters, detail views, camera permission handling, example-result labeling, and the admin overview in the browser. A successful frontend build alone does not validate these interactions.
 
-For UCLA Facilities Management integration support, contact your facilities coordinator.
-For technical issues, open a GitHub issue.
+Neither `package.json` defines `npm test`. `server/checkSetup.js` attempts a database connection, and `server/generateTestData.js` mutates data; they are utilities, not an isolated automated test suite.
+
+During the README review on **2026-10-12**, `npm ci --ignore-scripts --no-audit --no-fund` and `VITE_API_BASE_URL=http://localhost:5001 npm run build` passed with Node.js 26.7.0 and Vite 5.4.21. All 11 server JavaScript files passed `node --check`, and all three ML Python files parsed with `ast.parse`. A Vite proxy probe successfully reached a disposable local HTTP server on port 5001. The application backend, MongoDB integration, browser interaction, data import, and model inference were **not run**. The proxy probe, build, and syntax checks do not establish that those flows pass.
+
+## Known limitations
+
+- **Fullness reporting needs repair.** The frontend submits the current station ID to a route that looks up a bin ID. The route then refers to an undefined `report` when building its response and does not create a `FullnessReport` document. A valid bin can be updated before the response fails. Do not interpret this flow as verified end-to-end reporting.
+- **Demo identity and permissions:** impact is stored under one `demoStudent` record, and the API has no authentication middleware for admin or facilities writes. Use only a development environment with synthetic data.
+- **Metrics need context:** “Scans Today” counts fullness-report records, not camera inference requests. Some fallback problem-bin metrics are placeholders. Sorting results update impact only when the user completes the sorting flow.
+- **Model scope:** the current classifier mapping covers recycling and landfill labels, with no compost class mapping. The UI's compost example is sample data.
+- **Evaluation scope:** controlled usability testing was conducted; a real campus pilot, systematic accuracy measurement, and contamination-reduction study were future work.
+- **Reproducibility:** Python dependencies use lower bounds rather than a lockfile, and first-run model downloads and inference time depend on the machine.
+
+See [the project write-up](../Blog-Post.md) for the team's original evaluation and proposed improvements.

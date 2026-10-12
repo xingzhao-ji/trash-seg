@@ -3,3 +3,8 @@
 ML-seg/data/taco/
 MobileSAM/weights/
 
+# Local configuration: commit examples, never runtime credentials.
+.env
+.env.*
+!.env.example
+
