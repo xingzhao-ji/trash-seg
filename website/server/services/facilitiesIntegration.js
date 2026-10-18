@@ -126,8 +126,10 @@ class FacilitiesIntegration {
   static async updateBinStatistics(binId) {
     try {
       const now = new Date();
-      const weekAgo = new Date(now.setDate(now.getDate() - 7));
-      const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      const monthAgo = new Date(now);
+      monthAgo.setMonth(now.getMonth() - 1);
 
       // Get reports for this bin
       const weekReports = await FullnessReport.find({
